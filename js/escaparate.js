@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261122-16';
+  var VERSION_FOTOS = '20261122-19';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -73,9 +73,10 @@
   // La foto (4:5, sin marco), la pastilla de la etiqueta y, si toca, el sello de reservado
   function crearFoto(p) {
     var caja = el('div', 'producto__foto');
-    if (C.fotoValida(p.foto)) {
+    var foto = C.fotoPrincipal(p);
+    if (foto) {
       var img = el('img');
-      img.src = srcFoto(p.foto);
+      img.src = srcFoto(foto);
       img.alt = p.nombre;
       img.loading = 'lazy';
       img.decoding = 'async';
@@ -121,10 +122,6 @@
     return caja;
   }
 
-  function mensajeFinanciacion(p) {
-    return 'Hola, me interesa ' + p.nombre + ' (ref. ' + p.id + '). ¿Qué opciones de financiación tenéis?';
-  }
-
   function enlacePequeno(clase, texto, href, etiqueta) {
     var a = el('a', clase, texto);
     a.href = href;
@@ -133,19 +130,24 @@
     return a;
   }
 
-  // opciones.financiacion: añade el enlace «Financiación» (si la tienda la ofrece)
-  function crearTarjeta(p, tienda, opciones) {
+  // Solo dos acciones: «Reservar» (o «Avisadme si queda libre») y «Preguntar»
+  function crearTarjeta(p, tienda) {
     var wa = tienda && tienda.whatsapp;
     var li = el('li', 'producto' + (p.estado === 'reservado' ? ' producto--reservado' : ''));
     li.dataset.categoria = p.categoria;
-    li.appendChild(crearFoto(p));
+    li.dataset.id = p.id;
+    // Tocar la foto o el nombre abre la ficha (js/ficha.js); para el teclado, el nombre es un enlace a #p/{id}
+    var foto = crearFoto(p);
+    foto.dataset.abrirFicha = p.id;
+    li.appendChild(foto);
 
     var cuerpo = el('div', 'producto__cuerpo');
     cuerpo.appendChild(el('p', 'producto__cat', C.CATEGORIAS[p.categoria]));
-    cuerpo.appendChild(el('h3', 'producto__nombre', p.nombre));
-    if (p.estado === 'reservado') {
-      cuerpo.appendChild(el('p', 'producto__estado', 'Reservado: puede que quede libre'));
-    }
+    var titulo = el('h3', 'producto__nombre');
+    var enlace = el('a', 'producto__enlace', p.nombre);
+    enlace.href = '#p/' + p.id;
+    titulo.appendChild(enlace);
+    cuerpo.appendChild(titulo);
     if (p.descripcion) cuerpo.appendChild(el('p', 'producto__desc', p.descripcion));
     cuerpo.appendChild(crearPrecio(p));
 
@@ -166,10 +168,6 @@
     var enlaces = el('span', 'producto__enlaces');
     enlaces.appendChild(enlacePequeno('producto__preguntar', 'Preguntar',
       C.enlaceWhatsApp(wa, mensajePregunta(p)), 'Preguntar por ' + p.nombre + ' por WhatsApp'));
-    if (opciones && opciones.financiacion) {
-      enlaces.appendChild(enlacePequeno('producto__financiar', 'Financiación',
-        C.enlaceWhatsApp(wa, mensajeFinanciacion(p)), 'Preguntar por la financiación de ' + p.nombre + ' por WhatsApp'));
-    }
     acciones.appendChild(enlaces);
 
     cuerpo.appendChild(acciones);
@@ -181,7 +179,7 @@
     // Primero los destacados; dentro de cada grupo, antes los que tienen foto (un escaparate
     // que empieza con huecos parece vacío); si no, el orden de la lista. Los vendidos no se ven.
     var lista = contenido.productos.filter(function (p) { return p.estado !== 'vendido'; });
-    var rango = function (p) { return (p.destacado ? 0 : 2) + (p.foto ? 0 : 1); };
+    var rango = function (p) { return (p.destacado ? 0 : 2) + (C.fotoPrincipal(p) ? 0 : 1); };
     return lista
       .map(function (p, i) { return { p: p, i: i }; })
       .sort(function (a, b) { return rango(a.p) - rango(b.p) || a.i - b.i; })
@@ -208,9 +206,8 @@
   // Tarjeta-llamada para mayores y familias, dentro de la rejilla
   function crearLlamada(tienda) {
     var li = el('li', 'llamada');
-    li.appendChild(el('p', 'llamada__ante', 'Para mayores y familias'));
     li.appendChild(el('p', 'cartel llamada__titulo', '¿Buscas algo para tus padres?'));
-    li.appendChild(el('p', 'llamada__texto', 'Sillones relax, geriátricos y camas articuladas. Venid a probarlo juntos.'));
+    li.appendChild(el('p', 'llamada__texto', 'Sillones relax, geriátricos y camas articuladas.'));
     var a = el('a', 'boton boton--wa llamada__boton');
     a.href = C.enlaceWhatsApp(tienda.whatsapp, 'Hola, busco un sillón o una cama para mis padres. ¿Podemos ir a probarlos?');
     nuevaPestana(a);
@@ -235,7 +232,7 @@
 
     lista.textContent = '';
     mostrados.forEach(function (p, i) {
-      lista.appendChild(crearTarjeta(p, contenido.tienda, { financiacion: contenido.financiacion.activa }));
+      lista.appendChild(crearTarjeta(p, contenido.tienda));
       // La franja para mayores va tras la primera tanda (o al final si hay menos), solo en «Todo»
       if (filtroActual === 'todo' && (i === tope - 1 || (i === mostrados.length - 1 && i < tope - 1))) {
         lista.appendChild(crearLlamada(contenido.tienda));
@@ -265,8 +262,8 @@
       if (!elegidos.length) {
         var nombre = NOMBRE_FILTRO[filtroActual] || 'productos';
         vacio.querySelector('.escaparate__vacio-texto').textContent = filtroActual === 'todo'
-          ? 'Estamos preparando el escaparate: pregúntanos por WhatsApp y te contamos qué tenemos.'
-          : 'Ahora mismo no hay ' + nombre + ' en la web, pero en la tienda seguro que encuentras algo. Pregúntanos y te contamos qué tenemos.';
+          ? 'Ahora no hay productos en la web.'
+          : 'Ahora no hay ' + nombre + ' en la web.';
         var a = vacio.querySelector('a');
         a.href = C.enlaceWhatsApp(contenido.tienda.whatsapp, 'Hola, ¿qué ' + nombre + ' tenéis ahora en la tienda?');
       }
@@ -276,22 +273,40 @@
     }
   }
 
-  // La oferta de la portada: la primera pieza de exposición disponible con precio, en el orden en que
-  // la dueña las tiene en el panel (no el del escaparate, para no repetir su primera tarjeta); si no hay, no sale
-  function pintarOfertaPortada(contenido) {
-    var caja = document.querySelector('.oferta-destacada');
-    if (!caja) return;
-    var p = contenido.productos.filter(function (x) {
-      return x.etiqueta === 'exposicion' && x.estado === 'disponible' && typeof x.precio === 'number';
-    })[0];
+  var FOTO_TIENDA = 'img/tienda-sofa-blanco.jpg';
+  var ALT_TIENDA = 'Sofá chaiselongue blanco con una manta en la exposición de la tienda, junto al expositor de almohadas';
+
+  // La portada: si el panel destaca un producto que se ve en la web, su foto (o la de la tienda si no
+  // tiene) y una tarjeta con su nombre y precio que abre su ficha; si no, solo la foto de la tienda.
+  // raiz: dónde buscar las piezas (la web, o la vista previa del panel)
+  function pintarPortada(contenido, raiz) {
+    raiz = raiz || document;
+    var img = raiz.querySelector('.portada__foto img');
+    var caja = raiz.querySelector('.oferta-destacada');
+    if (!img || !caja) return;
+    var id = contenido.portada.destacado;
+    var p = id ? visibles(contenido).filter(function (x) { return x.id === id; })[0] : null;
+    var fotoProducto = p ? C.fotoPrincipal(p) : '';
+    var foto = fotoProducto || contenido.portada.foto;
+    img.src = srcFoto(foto);
+    img.alt = fotoProducto ? p.nombre : foto === FOTO_TIENDA ? ALT_TIENDA : 'Nuestra tienda';
+
     caja.hidden = !p;
-    if (!p) return;
-    caja.querySelector('.oferta-destacada__nombre').textContent = p.nombre;
-    var precio = caja.querySelector('.etiqueta-precio');
-    precio.textContent = '';
-    var fuerte = document.createElement('strong');
-    importe(fuerte, C.formatearPrecio(p.precio));
-    precio.appendChild(fuerte);
+    caja.textContent = '';
+    if (!p) { caja.removeAttribute('href'); return; }
+    caja.href = '#p/' + p.id;
+    if (p.etiqueta) caja.appendChild(el('span', 'pastilla pastilla--' + p.etiqueta, C.ETIQUETAS[p.etiqueta]));
+    caja.appendChild(el('span', 'oferta-destacada__nombre', p.nombre));
+    if (p.estado === 'reservado') caja.appendChild(el('span', 'oferta-destacada__estado', 'Reservado'));
+    var precio = el('span', 'etiqueta-precio' + (p.precio === null ? ' etiqueta-precio--consultar' : ''));
+    if (p.precio === null) {
+      precio.textContent = 'Consultar';
+    } else {
+      var fuerte = el('strong');
+      importe(fuerte, C.formatearPrecio(p.precio));
+      precio.appendChild(fuerte);
+    }
+    caja.appendChild(precio);
   }
 
   // La tira amarilla de exposición solo sale si hay piezas de exposición a la venta
@@ -339,7 +354,7 @@
     }
     pintarEscaparate(contenido);
     pintarTira(contenido);
-    pintarOfertaPortada(contenido);
+    pintarPortada(contenido);
 
     // Si cambia el número de columnas (girar el móvil, estrechar la ventana), se recalcula cuántos se ven
     if (window.matchMedia) {
@@ -355,11 +370,20 @@
       contenido = window.cargarContenido();
       pintarEscaparate(contenido);
       pintarTira(contenido);
-      pintarOfertaPortada(contenido);
+      pintarPortada(contenido);
     });
   }
 
-  window.Escaparate = { crearTarjeta: crearTarjeta };
+  // La ficha de producto (js/ficha.js) usa las mismas piezas que las tarjetas
+  window.Escaparate = {
+    crearTarjeta: crearTarjeta,
+    pintarPortada: pintarPortada,
+    piezas: {
+      el: el, icono: icono, iconoWa: iconoWa, srcFoto: srcFoto, crearPrecio: crearPrecio,
+      nuevaPestana: nuevaPestana, visibles: visibles,
+      mensajeReserva: mensajeReserva, mensajeAviso: mensajeAviso, mensajePregunta: mensajePregunta
+    }
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
