@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de la tienda · Siestta y Descanso</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1a1414">
+  <link rel="icon" href="img/logo.png">
+  <link rel="preload" href="fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-display-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/estilos.css?v=20261122-16">
+  <link rel="stylesheet" href="css/admin.css?v=20261122-16">
+</head>
+<body class="panel">
+  <a class="saltar" href="#panel-contenido">Saltar al contenido</a>
+
+  <header class="panel-cabecera">
+    <div class="panel-envoltura panel-cabecera__fila">
+      <img class="panel-cabecera__logo" src="img/logo.png" alt="Siestta y Descanso" width="494" height="277">
+      <p class="panel-cabecera__titulo">Panel de la tienda</p>
+      <p class="guardado" id="guardado"></p>
+      <a class="boton boton--linea boton--peque panel-cabecera__web" href="index.html" target="_blank" rel="noopener">Ver la web</a>
+    </div>
+  </header>
+
+  <p class="prototipo panel-envoltura">Prototipo: los cambios se guardan solo en este navegador.</p>
+
+  <nav class="pestanas panel-envoltura" role="tablist" aria-label="Partes del panel">
+    <button type="button" role="tab" class="pestana" id="t-productos" aria-controls="p-productos" aria-selected="true">Productos</button>
+    <button type="button" role="tab" class="pestana" id="t-horario" aria-controls="p-horario" aria-selected="false" tabindex="-1">Horario y avisos</button>
+    <button type="button" role="tab" class="pestana" id="t-textos" aria-controls="p-textos" aria-selected="false" tabindex="-1">Textos de la portada</button>
+    <button type="button" role="tab" class="pestana" id="t-contacto" aria-controls="p-contacto" aria-selected="false" tabindex="-1">Contacto</button>
+    <button type="button" role="tab" class="pestana" id="t-confianza" aria-controls="p-confianza" aria-selected="false" tabindex="-1">Confianza</button>
+  </nav>
+
+  <main id="panel-contenido" class="panel-envoltura">
+
+    <!-- Productos -->
+    <section class="hoja" id="p-productos" role="tabpanel" aria-labelledby="t-productos" tabindex="-1">
+      <div class="hoja__cab">
+        <h1 class="cartel hoja__titulo">Productos</h1>
+        <button type="button" class="boton boton--noche boton--grande" id="anadir">
+          <span aria-hidden="true">+</span> Añadir producto
+        </button>
+      </div>
+
+      <div class="vista" role="group" aria-label="Qué productos ver">
+        <button type="button" class="vista__boton" data-vista="web" aria-pressed="true">En la web <span class="vista__cuenta" id="cuenta-web">0</span></button>
+        <button type="button" class="vista__boton" data-vista="vendidos" aria-pressed="false">Vendidos <span class="vista__cuenta" id="cuenta-vendidos">0</span></button>
+      </div>
+
+      <ul class="lista" id="lista" aria-label="Lista de productos"></ul>
+      <p class="lista-vacia" id="lista-vacia" hidden></p>
+    </section>
+
+    <!-- Horario y avisos -->
+    <section class="hoja" id="p-horario" role="tabpanel" aria-labelledby="t-horario" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Horario y avisos</h1>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Aviso en la web</h2>
+        <p class="bloque__ayuda">Una banda arriba de la página para cosas como la feria, vacaciones o un cierre.</p>
+
+        <label class="campo">
+          <span class="campo__etiqueta">Texto del aviso</span>
+          <input type="text" id="aviso-texto" maxlength="120" autocomplete="off" aria-describedby="aviso-texto-error aviso-cuenta">
+          <span class="campo__error" id="aviso-texto-error" hidden></span>
+          <span class="campo__cuenta" id="aviso-cuenta">0 / 120</span>
+        </label>
+        <div class="rapidos" role="group" aria-label="Textos rápidos">
+          <button type="button" class="rapido" data-texto="Cerrado por vacaciones. Volvemos pronto.">Cerrado por vacaciones</button>
+          <button type="button" class="rapido" data-texto="Cerrado por feria. ¡Felices fiestas!">Cerrado por feria</button>
+          <button type="button" class="rapido" data-texto="Hoy cerramos antes.">Hoy cerramos antes</button>
+        </div>
+
+        <div class="aviso-estado">
+          <p class="aviso-estado__texto" id="aviso-estado"></p>
+          <button type="button" class="boton boton--noche" id="aviso-boton">Poner el aviso en la web</button>
+        </div>
+
+        <p class="previa-titulo">Así se verá:</p>
+        <div class="aviso aviso--previa" id="aviso-previa">
+          <p class="aviso__fila"><strong class="aviso__ante">Aviso</strong> <span class="aviso__texto" id="aviso-previa-texto"></span></p>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Horario de la tienda</h2>
+        <p class="bloque__ayuda">Marca los días y las horas. Los días que no marques salen como cerrados.</p>
+        <ol class="tramos" id="tramos"></ol>
+        <button type="button" class="boton boton--linea boton--ancho" id="anadir-tramo"><span aria-hidden="true">+</span> Añadir otro horario</button>
+        <p class="previa-titulo">Así se verá en la web:</p>
+        <p class="horario-previa" id="horario-previa"></p>
+      </div>
+    </section>
+
+    <!-- Textos de la portada -->
+    <section class="hoja" id="p-textos" role="tabpanel" aria-labelledby="t-textos" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Textos de la portada</h1>
+      <div class="bloque">
+        <label class="campo">
+          <span class="campo__etiqueta">Titular grande</span>
+          <span class="campo__ayuda" id="titular-ayuda">Escribe dos líneas (como mucho tres). La última sale en rojo, como escrita a mano.</span>
+          <textarea id="titular" rows="2" maxlength="80" aria-describedby="titular-ayuda titular-error"></textarea>
+          <span class="campo__error" id="titular-error" hidden></span>
+        </label>
+        <label class="campo">
+          <span class="campo__etiqueta">Frase de debajo</span>
+          <textarea id="entradilla" rows="3" maxlength="220" aria-describedby="entradilla-cuenta"></textarea>
+          <span class="campo__cuenta" id="entradilla-cuenta">0 / 220</span>
+        </label>
+        <p class="bloque__ayuda">Si dejas un texto vacío, se usa el de siempre.</p>
+
+        <p class="previa-titulo">Así se verá:</p>
+        <div class="portada-previa">
+          <p class="cartel portada-previa__titular" id="titular-previa"></p>
+          <p class="portada-previa__entradilla" id="entradilla-previa"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contacto -->
+    <section class="hoja" id="p-contacto" role="tabpanel" aria-labelledby="t-contacto" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Contacto</h1>
+      <div class="bloque">
+        <label class="campo">
+          <span class="campo__etiqueta">Teléfono (como quieres que se lea)</span>
+          <input type="tel" id="telefono" maxlength="20" autocomplete="off" inputmode="tel" aria-describedby="telefono-error">
+          <span class="campo__error" id="telefono-error" hidden></span>
+        </label>
+        <label class="campo">
+          <span class="campo__etiqueta">Móvil de WhatsApp (ej. 621 23 05 88)</span>
+          <input type="tel" id="whatsapp" maxlength="20" autocomplete="off" inputmode="tel" aria-describedby="whatsapp-error">
+          <span class="campo__error" id="whatsapp-error" hidden></span>
+        </label>
+        <label class="campo">
+          <span class="campo__etiqueta">Dirección (como mucho 3 líneas)</span>
+          <textarea id="direccion" rows="2" maxlength="140" aria-describedby="direccion-error"></textarea>
+          <span class="campo__error" id="direccion-error" hidden></span>
+        </label>
+        <p class="bloque__ayuda">Los botones de WhatsApp y de llamar de toda la web usan estos números.</p>
+      </div>
+    </section>
+
+    <!-- Confianza: opiniones, financiación, marcas y año -->
+    <section class="hoja" id="p-confianza" role="tabpanel" aria-labelledby="t-confianza" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Confianza</h1>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Opiniones de Google</h2>
+        <p class="bloque__ayuda">Copia la nota y el número de opiniones de vuestra ficha de Google, y algunas frases de clientes. Lo que dejes vacío no sale en la web.</p>
+        <div class="fila-campos">
+          <label class="campo campo--corto">
+            <span class="campo__etiqueta">Nota (de 1 a 5)</span>
+            <input type="text" id="op-nota" inputmode="decimal" maxlength="3" autocomplete="off" aria-describedby="op-nota-error">
+            <span class="campo__error" id="op-nota-error" hidden></span>
+          </label>
+          <label class="campo campo--corto">
+            <span class="campo__etiqueta">Número de opiniones</span>
+            <input type="text" id="op-total" inputmode="numeric" maxlength="6" autocomplete="off" aria-describedby="op-total-error">
+            <span class="campo__error" id="op-total-error" hidden></span>
+          </label>
+        </div>
+        <ol class="opiniones-lista" id="op-lista" aria-label="Opiniones que salen en la web"></ol>
+        <button type="button" class="boton boton--linea boton--ancho" id="op-anadir"><span aria-hidden="true">+</span> Añadir opinión</button>
+      </div>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Financiación</h2>
+        <label class="casilla">
+          <input type="checkbox" id="fin-activa">
+          <span>Ofrecemos financiación (sale en la web)</span>
+        </label>
+        <label class="campo">
+          <span class="campo__etiqueta">Condiciones (opcional)</span>
+          <span class="campo__ayuda" id="fin-ayuda">Por ejemplo: «Hasta 12 meses sin intereses». Si no lo sabes seguro, déjalo vacío.</span>
+          <input type="text" id="fin-texto" maxlength="80" autocomplete="off" aria-describedby="fin-ayuda">
+        </label>
+      </div>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Marcas</h2>
+        <p class="bloque__ayuda">Las marcas que vendéis. Si no pones ninguna, no sale nada en la web.</p>
+        <ul class="marcas-lista" id="marcas-lista" aria-label="Marcas que salen en la web"></ul>
+        <div class="fila-anadir">
+          <label class="campo">
+            <span class="campo__etiqueta">Nueva marca</span>
+            <input type="text" id="marca-nueva" maxlength="30" autocomplete="off" aria-describedby="marca-nueva-error">
+            <span class="campo__error" id="marca-nueva-error" hidden></span>
+          </label>
+          <button type="button" class="boton boton--noche" id="marca-anadir">Añadir marca</button>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <h2 class="bloque__titulo">Desde qué año</h2>
+        <label class="campo campo--corto">
+          <span class="campo__etiqueta">Año en que abrió la tienda</span>
+          <input type="text" id="desde" inputmode="numeric" maxlength="4" autocomplete="off" aria-describedby="desde-ayuda desde-error">
+          <span class="campo__error" id="desde-error" hidden></span>
+        </label>
+        <p class="bloque__ayuda" id="desde-ayuda">Sale como «Desde 2003». Si lo dejas vacío, no sale.</p>
+      </div>
+    </section>
+
+    <section class="restaurar" aria-labelledby="t-restaurar">
+      <h2 class="bloque__titulo" id="t-restaurar">¿Empezar de cero?</h2>
+      <p class="bloque__ayuda">Vuelve a poner los productos y los textos de ejemplo. Se pierde todo lo que hayas cambiado.</p>
+      <button type="button" class="boton boton--linea boton--peligro" id="restaurar">Restaurar ejemplo</button>
+    </section>
+  </main>
+
+  <!-- Ficha de producto -->
+  <dialog class="ficha" id="ficha" aria-labelledby="ficha-titulo">
+    <form class="ficha__form" id="ficha-form" novalidate>
+      <header class="ficha__cab">
+        <h2 class="cartel ficha__titulo" id="ficha-titulo">Nuevo producto</h2>
+        <p class="ficha__ref" id="ficha-ref"></p>
+        <button type="button" class="ficha__cerrar" id="ficha-cerrar" aria-label="Cerrar la ficha">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+
+      <div class="ficha__cuerpo">
+        <div class="ficha__foto">
+          <button type="button" class="foto-caja" id="foto-caja" aria-label="Hacer una foto del producto">
+            <img id="foto-img" alt="" hidden>
+            <span class="foto-caja__vacia" id="foto-vacia">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+              <span>Toca para hacer una foto</span>
+            </span>
+            <span class="foto-caja__cambiar" id="foto-cambiar" aria-hidden="true" hidden>Cambiar foto</span>
+          </button>
+          <input type="file" id="foto-camara" class="visualmente-oculto" accept="image/*" capture="environment" tabindex="-1">
+          <input type="file" id="foto-galeria" class="visualmente-oculto" accept="image/*" tabindex="-1">
+          <div class="foto-acciones">
+            <button type="button" class="boton-texto" id="foto-elegir">Elegir de la galería</button>
+            <button type="button" class="boton-texto" id="foto-quitar" hidden>Quitar foto</button>
+          </div>
+          <p class="foto-estado" id="foto-estado" role="status"></p>
+        </div>
+
+        <div class="ficha__datos">
+          <label class="campo campo--compacto">
+            <span class="campo__etiqueta">Nombre</span>
+            <input type="text" id="f-nombre" maxlength="60" autocomplete="off" required aria-describedby="f-nombre-error">
+            <span class="campo__error" id="f-nombre-error" hidden>Escribe cómo se llama el producto.</span>
+          </label>
+
+          <fieldset class="opciones">
+            <legend class="campo__etiqueta">¿Qué es?</legend>
+            <div class="opciones__fila opciones__fila--4">
+              <label class="opcion"><input type="radio" name="categoria" value="sofas"><span>Sofá</span></label>
+              <label class="opcion"><input type="radio" name="categoria" value="sillones"><span>Sillón</span></label>
+              <label class="opcion"><input type="radio" name="categoria" value="colchones"><span>Colchón</span></label>
+              <label class="opcion"><input type="radio" name="categoria" value="camas"><span>Cama</span></label>
+            </div>
+          </fieldset>
+
+          <div class="ficha__precios">
+            <label class="campo campo--compacto campo--precio">
+              <span class="campo__etiqueta">Precio en euros</span>
+              <span class="con-unidad"><input type="text" id="f-precio" inputmode="decimal" autocomplete="off" placeholder="Consultar" aria-describedby="f-precio-ayuda f-precio-error"><span aria-hidden="true">€</span></span>
+              <span class="campo__ayuda" id="f-precio-ayuda">Vacío o 0 = «Consultar»</span>
+              <span class="campo__error" id="f-precio-error" hidden></span>
+            </label>
+            <details class="antes" id="f-antes-caja">
+              <summary>Poner precio rebajado</summary>
+              <label class="campo campo--compacto campo--antes">
+                <span class="campo__etiqueta">Antes:</span>
+                <span class="con-unidad"><input type="text" id="f-antes" inputmode="decimal" autocomplete="off" aria-describedby="f-antes-error"><span aria-hidden="true">€</span></span>
+                <span class="campo__error" id="f-antes-error" hidden></span>
+              </label>
+            </details>
+            <label class="casilla">
+              <input type="checkbox" id="f-destacado">
+              <span>Mostrarlo el primero en la web</span>
+            </label>
+          </div>
+
+          <fieldset class="opciones">
+            <legend class="campo__etiqueta">Etiqueta en la foto</legend>
+            <div class="opciones__fila">
+              <label class="opcion opcion--chip"><input type="radio" name="etiqueta" value=""><span>Ninguna</span></label>
+              <label class="opcion opcion--chip"><input type="radio" name="etiqueta" value="exposicion"><span>Exposición</span></label>
+              <label class="opcion opcion--chip"><input type="radio" name="etiqueta" value="oferta"><span>Oferta</span></label>
+              <label class="opcion opcion--chip"><input type="radio" name="etiqueta" value="ultimas"><span>Últimas unidades</span></label>
+            </div>
+          </fieldset>
+
+          <label class="campo campo--compacto">
+            <span class="campo__etiqueta">Descripción corta</span>
+            <textarea id="f-descripcion" rows="2" maxlength="140" aria-describedby="f-descripcion-cuenta"></textarea>
+            <span class="campo__cuenta" id="f-descripcion-cuenta">0 / 140</span>
+          </label>
+        </div>
+
+        <aside class="ficha__previa" aria-labelledby="ficha-previa-titulo">
+          <p class="previa-titulo" id="ficha-previa-titulo">Así se verá en la web</p>
+          <ul class="productos productos--previa" id="ficha-previa" inert></ul>
+        </aside>
+      </div>
+
+      <footer class="ficha__pie">
+        <p class="ficha__error" id="ficha-error" role="alert"></p>
+        <button type="button" class="boton-texto ficha__borrar" id="ficha-borrar" hidden>Borrar este producto</button>
+        <p class="ficha__nota" id="ficha-nota" hidden>Los cambios se guardan solos.</p>
+        <button type="button" class="boton boton--linea" id="ficha-cancelar">Cancelar</button>
+        <button type="submit" class="boton boton--noche" id="ficha-guardar">Añadir a la web</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Confirmación -->
+  <dialog class="confirmar" id="confirmar" aria-labelledby="confirmar-texto" aria-describedby="confirmar-detalle">
+    <p class="confirmar__texto" id="confirmar-texto"></p>
+    <p class="confirmar__detalle" id="confirmar-detalle"></p>
+    <div class="confirmar__botones">
+      <button type="button" class="boton boton--linea" id="confirmar-no">No, volver</button>
+      <button type="button" class="boton boton--noche" id="confirmar-si">Sí</button>
+    </div>
+  </dialog>
+
+  <!-- Aviso flotante: va en la capa de arriba (popover), por encima también de las fichas -->
+  <div class="toast" id="toast" popover="manual">
+    <p class="toast__texto" id="toast-texto"></p>
+    <button type="button" class="toast__boton toast__boton--accion" id="toast-accion" hidden>Deshacer</button>
+    <button type="button" class="toast__boton" id="toast-cerrar">Cerrar</button>
+  </div>
+  <!-- Lo que dice el aviso flotante se lee también aquí, para los lectores de pantalla -->
+  <p class="visualmente-oculto" id="anuncio" role="status" aria-live="polite"></p>
+  <p class="visualmente-oculto" id="anuncio-error" role="alert"></p>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-wa" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.7-1.2 2.2 2.2 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3Z"/></symbol>
+  </svg>
+
+  <script src="js/contenido.js?v=20261122-16" defer></script>
+  <script src="js/escaparate.js?v=20261122-16" defer></script>
+  <script src="js/admin.js?v=20261122-16" defer></script>
+</body>
+</html>
