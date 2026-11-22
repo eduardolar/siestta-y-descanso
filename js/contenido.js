@@ -7,7 +7,7 @@
   'use strict';
 
   var CLAVE = 'siestta-contenido-v1';
-  var VERSION = 2;
+  var VERSION = 3;
 
   var CATEGORIAS = {
     sofas: 'Sofás',
@@ -26,8 +26,19 @@
     reservado: 'Reservado',
     vendido: 'Vendido'
   };
+  // Firmeza del colchón (solo se enseña en los colchones)
+  var FIRMEZAS = {
+    '': 'Sin indicar',
+    blanda: 'Blanda',
+    media: 'Media',
+    firme: 'Firme',
+    'muy firme': 'Muy firme'
+  };
   var LIMITES = { nombre: 60, descripcion: 140, aviso: 120, titular: 80, entradilla: 220, direccion: 140, productos: 200, lineasTitular: 3, lineasDireccion: 3,
-    opiniones: 6, opinion: 220, autor: 40, financiacion: 80, marcas: 12, marca: 30 };
+    opiniones: 6, opinion: 220, autor: 40, financiacion: 80, marcas: 12, marca: 30,
+    fotos: 4, descripcionLarga: 1000, medidas: 120, colores: 160, plazo: 60, zonaEntrega: 80 };
+  // La entradilla de antes de la versión 3 prometía la entrega a todos: si sigue sin tocar, se cambia
+  var ENTRADILLA_V2 = 'En Tomelloso, con quien te atiende en persona. Pruébalo, elegimos contigo medida, tela y color, y te lo llevamos a casa.';
   var ENLACE_GOOGLE = 'https://www.google.com/maps/search/?api=1&query=Siestta%20y%20Descanso%20Tomelloso';
 
   // Productos de EJEMPLO para enseñar el escaparate. Los tres precios son los publicados
@@ -43,7 +54,9 @@
         { dias: 'Lunes a viernes', horas: '10:00–13:30 y 17:00–20:30' },
         { dias: 'Sábados', horas: '10:00–13:30' }
       ],
-      aviso: { activo: false, texto: 'En feria abrimos de 10:00 a 14:00' }
+      aviso: { activo: false, texto: 'En feria abrimos de 10:00 a 14:00' },
+      // La entrega a domicilio no llega a todas partes: la web enseña esta zona (vacía = «consulta zona»)
+      zonaEntrega: 'Tomelloso y pueblos cercanos'
     },
     // La sociedad Siestta y Descanso S.L. se constituyó el 5-11-2003
     desde: '2003',
@@ -63,49 +76,61 @@
     marcas: [],
     portada: {
       titular: 'Siéntate. Túmbate.\nLuego decides.',
-      entradilla: 'En Tomelloso, con quien te atiende en persona. Pruébalo, elegimos contigo medida, tela y color, y te lo llevamos a casa.'
+      entradilla: 'Pruébalo en la tienda y elige con nosotros medida, tela y color.',
+      // Producto destacado en la portada (su foto y su precio); '' = solo la foto de la tienda.
+      // Uno disponible, con foto propia y precio, para que la foto y el precio coincidan.
+      destacado: 'COL-01',
+      foto: 'img/tienda-sofa-blanco.jpg'
     },
+    // Detalles de la ficha: solo lo que se sabe seguro. Medidas, firmeza y plazos se dejan
+    // vacíos (son opcionales y no salen); la cama lleva dos fotos porque es la misma de las dos fotos.
     productos: [
       {
         id: 'SOF-01', nombre: 'Conjunto de sofás 3+2', categoria: 'sofas',
-        precio: 699, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', foto: '',
+        precio: 699, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', fotos: [],
         descripcion: 'Sofá de tres plazas y otro de dos. Pieza de exposición: se vende tal cual la ves.',
+        descripcionLarga: 'Un sofá de tres plazas y otro de dos, de la exposición de la tienda. Se vende tal cual lo ves.',
         destacado: false
       },
       {
         id: 'COL-01', nombre: 'Colchón 150×190', categoria: 'colchones',
-        precio: 299, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', foto: 'img/colchon-detalle.jpg',
+        precio: 299, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', fotos: ['img/colchon-detalle.jpg'],
         descripcion: 'Túmbate en él en la tienda antes de llevártelo. Con su almohada a juego.',
+        descripcionLarga: 'Colchón de 150×190 de la exposición, con su almohada a juego.',
         destacado: true
       },
       {
         id: 'SIL-01', nombre: 'Sillón de exposición', categoria: 'sillones',
-        precio: 99, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', foto: '',
+        precio: 99, precioAntes: null, etiqueta: 'exposicion', estado: 'disponible', fotos: [],
         descripcion: 'Pieza de exposición con descuento. Cuando se acaba, se acaba.',
         destacado: false
       },
       {
         id: 'SOF-02', nombre: 'Sofá chaiselongue azul', categoria: 'sofas',
-        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', foto: 'img/sofa-chaiselongue.jpg',
+        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', fotos: ['img/sofa-chaiselongue.jpg'],
         descripcion: 'Chaiselongue con arcón. Te lo pedimos con tu medida, tela y color.',
+        descripcionLarga: 'Chaiselongue con arcón para guardar mantas y cojines.',
+        colores: 'Varias telas y colores en tienda', aMedida: true,
         destacado: true
       },
       {
         id: 'SOF-03', nombre: 'Sofá chaiselongue blanco', categoria: 'sofas',
-        precio: null, precioAntes: null, etiqueta: 'ultimas', estado: 'reservado', foto: 'img/tienda-sofa-blanco.jpg',
+        precio: null, precioAntes: null, etiqueta: 'ultimas', estado: 'reservado', fotos: ['img/tienda-sofa-blanco.jpg'],
         descripcion: 'El de la entrada de la tienda. Tela clara y asientos amplios.',
+        colores: 'Varias telas y colores en tienda', aMedida: true,
         destacado: true
       },
       {
         id: 'SIL-02', nombre: 'Sillón relax camel', categoria: 'sillones',
-        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', foto: 'img/sillon-relax.jpg',
+        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', fotos: ['img/sillon-relax.jpg'],
         descripcion: 'Respaldo alto y reposapiés, para sentarse y levantarse sin esfuerzo.',
         destacado: true
       },
       {
         id: 'CAM-01', nombre: 'Cama con canapé y cabecero', categoria: 'camas',
-        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', foto: 'img/colchon-cabecero.jpg',
+        precio: null, precioAntes: null, etiqueta: '', estado: 'disponible', fotos: ['img/colchon-cabecero.jpg', 'img/colchon-detalle.jpg'],
         descripcion: 'Canapé abatible de madera clara y cabecero tapizado con tachuelas.',
+        descripcionLarga: 'Canapé abatible de madera clara, con hueco para guardar, y cabecero tapizado con tachuelas.',
         destacado: false
       }
     ]
@@ -148,6 +173,30 @@
     if (typeof foto !== 'string' || !foto) return false;
     if (/^img\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp)$/i.test(foto) && foto.indexOf('..') === -1) return true;
     return /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(foto);
+  }
+
+  // Hasta 4 fotos válidas y sin repetir; la primera es la principal
+  function normalizarFotos(fotos) {
+    var vistas = {};
+    return (Array.isArray(fotos) ? fotos : []).filter(function (f) {
+      if (!fotoValida(f) || vistas[f]) return false;
+      vistas[f] = true;
+      return true;
+    }).slice(0, LIMITES.fotos);
+  }
+
+  // La foto principal (la de la tarjeta), o '' si no tiene. Úsese siempre esta, no p.fotos[0]
+  function fotoPrincipal(p) {
+    return p && Array.isArray(p.fotos) && fotoValida(p.fotos[0]) ? p.fotos[0] : '';
+  }
+
+  // Texto de varios párrafos: sin caracteres de control, con saltos de línea y como mucho una línea en blanco seguida
+  function parrafos(valor, max) {
+    if (typeof valor !== 'string') return '';
+    var t = valor.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '')
+      .split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); }).join('\n')
+      .replace(/\n{3,}/g, '\n\n').trim();
+    return Array.from(t).slice(0, max).join('').trim();
   }
 
   function soloDigitos(t) { return String(t || '').replace(/\D/g, ''); }
@@ -295,8 +344,16 @@
       precioAntes: antes,
       etiqueta: ETIQUETAS.hasOwnProperty(p.etiqueta) ? p.etiqueta : '',
       estado: ESTADOS.hasOwnProperty(p.estado) ? p.estado : 'disponible',
-      foto: fotoValida(p.foto) ? p.foto : '',
+      // Datos sin migrar con la foto suelta (p.foto): se aceptan como su única foto
+      fotos: normalizarFotos(Array.isArray(p.fotos) ? p.fotos : [p.foto]),
       descripcion: unaLinea(p.descripcion, LIMITES.descripcion, ''),
+      descripcionLarga: parrafos(p.descripcionLarga, LIMITES.descripcionLarga),
+      medidas: unaLinea(p.medidas, LIMITES.medidas, ''),
+      colores: unaLinea(p.colores, LIMITES.colores, ''),
+      // Se guarda aunque cambie la categoría; la web solo la enseña en los colchones
+      firmeza: FIRMEZAS.hasOwnProperty(p.firmeza) ? p.firmeza : '',
+      aMedida: p.aMedida === true,
+      plazo: unaLinea(p.plazo, LIMITES.plazo, ''),
       destacado: p.destacado === true
     };
   }
@@ -329,6 +386,7 @@
       : copiar(ej.productos);
 
     var wa = normalizarWhatsapp(t.whatsapp);
+    var destacado = p.destacado === undefined ? ej.portada.destacado : unaLinea(p.destacado, 20, '');
 
     // Bloques de confianza: si no vienen (datos de la versión 1), se usan los del ejemplo;
     // si vienen vacíos, se respetan (y la web no los enseña)
@@ -358,11 +416,16 @@
         whatsapp: whatsappValido(wa) ? wa : ej.tienda.whatsapp,
         direccion: texto(t.direccion, LIMITES.direccion, '') || ej.tienda.direccion,
         horario: horario,
-        aviso: { activo: aviso.activo === true, texto: unaLinea(aviso.texto, LIMITES.aviso, '') }
+        aviso: { activo: aviso.activo === true, texto: unaLinea(aviso.texto, LIMITES.aviso, '') },
+        // Si no viene (datos anteriores a la versión 3), la del ejemplo; si viene vacía, se respeta
+        zonaEntrega: t.zonaEntrega === undefined ? ej.tienda.zonaEntrega : unaLinea(t.zonaEntrega, LIMITES.zonaEntrega, '')
       },
       portada: {
         titular: texto(p.titular, LIMITES.titular, '') || ej.portada.titular,
-        entradilla: unaLinea(p.entradilla, LIMITES.entradilla, '') || ej.portada.entradilla
+        entradilla: unaLinea(p.entradilla, LIMITES.entradilla, '') || ej.portada.entradilla,
+        // Solo si es un producto que se ve en la web: si se vende o se borra, la portada se queda sin destacado
+        destacado: productos.some(function (x) { return x.id === destacado && x.estado !== 'vendido'; }) ? destacado : '',
+        foto: fotoValida(p.foto) ? p.foto : ej.portada.foto
       },
       desde: desde,
       opiniones: {
@@ -379,12 +442,35 @@
 
   // Cambios de esquema. v0 → v1: no había versiones. v1 → v2: llegan desde, opiniones,
   // financiación y marcas; como no existen en los datos viejos, normalizar() pone los del ejemplo.
+  // v2 → v3: la foto suelta (foto) pasa a ser la lista de fotos (fotos: [foto]); los campos nuevos
+  // de la ficha (descripcionLarga, medidas, colores, firmeza, aMedida, plazo) quedan vacíos. Llega la zona
+  // de entrega (la del ejemplo), el destacado de la portada y su foto; si la entradilla era la de antes, se pone la nueva.
   function migrar(c) {
     if (!c || typeof c !== 'object') return null;
     var v = typeof c.version === 'number' ? c.version : 0;
     if (v > VERSION) return null; // guardado por una versión más nueva: no lo tocamos
     if (v < 2) {
       delete c.desde; delete c.opiniones; delete c.financiacion; delete c.marcas;
+    }
+    if (v < 3 && c.tienda && typeof c.tienda === 'object') delete c.tienda.zonaEntrega;
+    if (v < 3 && c.portada && typeof c.portada === 'object' && c.portada.entradilla === ENTRADILLA_V2) {
+      c.portada.entradilla = CONTENIDO_EJEMPLO.portada.entradilla;
+    }
+    // Antes la portada enseñaba sola la primera pieza de exposición con precio: se conserva como destacado
+    if (v < 3 && c.portada && typeof c.portada === 'object') {
+      var expo = (Array.isArray(c.productos) ? c.productos : []).filter(function (x) {
+        return x && x.etiqueta === 'exposicion' && x.estado === 'disponible' && numero(x.precio) !== null && numero(x.precio) > 0;
+      })[0];
+      c.portada.destacado = expo && typeof expo.id === 'string' ? expo.id : '';
+      delete c.portada.foto;
+    }
+    if (v < 3 && Array.isArray(c.productos)) {
+      c.productos.forEach(function (p) {
+        if (!p || typeof p !== 'object') return;
+        p.fotos = p.foto ? [p.foto] : [];
+        delete p.foto;
+        ['descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo'].forEach(function (k) { delete p[k]; });
+      });
     }
     return c;
   }
@@ -430,7 +516,10 @@
     CATEGORIAS: CATEGORIAS,
     ETIQUETAS: ETIQUETAS,
     ESTADOS: ESTADOS,
+    FIRMEZAS: FIRMEZAS,
     LIMITES: LIMITES,
+    fotoPrincipal: fotoPrincipal,
+    normalizarFotos: normalizarFotos,
     NOMBRES_DIA: NOMBRES_DIA,
     normalizar: normalizar,
     normalizarProducto: normalizarProducto,

@@ -12,7 +12,7 @@
 
   var contenido = window.cargarContenido();
   var vista = 'web';
-  var V = '20261122-16';
+  var V = '20261122-19';
 
   var MENSAJE_CUOTA = 'No cabe más: borra productos vendidos o usa fotos más pequeñas.';
   var MENSAJE_ERROR = 'No se ha podido guardar en este navegador. Puede que esté en modo privado o sin espacio.';
@@ -51,13 +51,17 @@
     else toast.hidden = true;
   }
 
-  // opciones: { error: true } se queda hasta cerrarlo; { accion: { texto, hacer } } añade un botón (Deshacer)
+  // Los avisos normales se van solos a los 3 s, sin botón y sin bloquear lo que hay debajo.
+  // opciones: { error: true } se queda hasta cerrarlo («Cerrar»); { accion: { texto, hacer } } añade
+  // un botón (Deshacer) y dura 5 s
   function avisar(texto, opciones) {
     opciones = opciones || {};
     clearTimeout(temporizadorToast);
     $('toast-texto').textContent = texto;
     toast.classList.toggle('toast--error', !!opciones.error);
     accionToast = opciones.accion || null;
+    toast.classList.toggle('toast--info', !opciones.error && !accionToast);
+    $('toast-cerrar').hidden = !opciones.error;
     $('toast-accion').hidden = !accionToast;
     if (accionToast) $('toast-accion').textContent = accionToast.texto;
     if (conPopover) {
@@ -67,7 +71,7 @@
       toast.hidden = false;
     }
     anunciar(texto, !!opciones.error);
-    if (!opciones.error) temporizadorToast = setTimeout(esconderToast, opciones.duracion || (accionToast ? 6000 : 3500));
+    if (!opciones.error) temporizadorToast = setTimeout(esconderToast, opciones.duracion || (accionToast ? 5000 : 3000));
   }
   $('toast-cerrar').addEventListener('click', esconderToast);
   $('toast-accion').addEventListener('click', function () {
@@ -89,8 +93,10 @@
 
   // Relee lo último guardado, le aplica el cambio y lo guarda. Si el cambio devuelve false
   // (p. ej. el producto ya no existe), no se guarda nada. Devuelve { ok, motivo }.
+  // Si el cambio deja la portada sin su producto destacado (vendido o borrado), r.portadaQuitada = true.
   function aplicar(cambio) {
     var base = window.cargarContenido();
+    var destacadoAntes = base.portada.destacado;
     if (cambio(base) === false) {
       contenido = base;
       return { ok: false, motivo: 'falta' };
@@ -100,6 +106,7 @@
     if (r.ok) {
       contenido = nuevo;
       avisarGuardado(true);
+      r.portadaQuitada = !!destacadoAntes && base.portada.destacado === destacadoAntes && !nuevo.portada.destacado;
     } else {
       avisarGuardado(false);
       avisar(r.motivo === 'cuota' ? MENSAJE_CUOTA : MENSAJE_ERROR, { error: true });
@@ -195,9 +202,10 @@
 
   function miniatura(p) {
     var caja = el('div', 'item__foto');
-    if (C.fotoValida(p.foto)) {
+    var foto = C.fotoPrincipal(p);
+    if (foto) {
       var img = el('img');
-      img.src = srcFoto(p.foto);
+      img.src = srcFoto(foto);
       img.alt = '';
       img.width = 72;
       img.height = 72;
@@ -270,12 +278,13 @@
     vacia.hidden = elegidos.length > 0;
     vacia.textContent = vista === 'web'
       ? 'No hay productos en la web. Pulsa «Añadir producto» para poner el primero.'
-      : 'Aquí salen los productos que marques como vendidos. Ahora no hay ninguno.';
+      : 'No hay productos vendidos.';
 
     if (enfoque) {
       var b = enfoque.id && lista.querySelector('[data-id="' + enfoque.id + '"][data-accion="' + enfoque.accion + '"]');
       (b || $('anadir')).focus();
     }
+    pintarPortadaPanel();
   }
 
   document.querySelector('.vista').addEventListener('click', function (e) {
@@ -313,11 +322,18 @@
         var antes = p.estado;
         r = cambiarEstado(id, 'vendido');
         if (r.ok) {
-          avisar('Vendido: ' + p.nombre + '. Ya no se ve en la web.', {
+          var sinPortada = r.portadaQuitada;
+          avisar('Vendido: ' + p.nombre + '. Ya no se ve en la web' + (sinPortada ? ' ni en la portada.' : '.'), {
             accion: {
               texto: 'Deshacer',
               hacer: function () {
-                if (cambiarEstado(id, antes).ok) avisar('Deshecho: ' + p.nombre + ' vuelve a la web.');
+                var d = aplicar(function (c) {
+                  var x = enCopia(c, id);
+                  if (!x) return false;
+                  x.estado = antes;
+                  if (sinPortada) c.portada.destacado = id;
+                });
+                if (d.ok) avisar('Deshecho: ' + p.nombre + ' vuelve a la web.');
                 pintarLista();
               }
             }
@@ -355,16 +371,75 @@
   function textoNumero(n) { return n === null ? '' : String(n).replace('.', ','); }
   function leerPrecio(texto) { return C.numero(texto.replace(/€/g, '').trim()); }
 
-  function pintarFoto() {
+  // Hasta 4 fotos: la grande es la principal; debajo, la lista con «Hacer principal» y «Quitar»
+  // enfoque: { i, accion } para devolver el foco al botón equivalente tras repintar
+  function pintarFotos(enfoque) {
+    var fotos = borrador.fotos;
     var img = $('foto-img');
-    var hay = C.fotoValida(borrador.foto);
+    var hay = fotos.length > 0;
+    var lleno = fotos.length >= C.LIMITES.fotos;
     img.hidden = !hay;
-    if (hay) img.src = srcFoto(borrador.foto);
+    if (hay) img.src = srcFoto(fotos[0]);
     else img.removeAttribute('src');
     $('foto-vacia').hidden = hay;
-    $('foto-cambiar').hidden = !hay;
-    $('foto-quitar').hidden = !hay;
-    $('foto-caja').setAttribute('aria-label', hay ? 'Cambiar la foto: hacer otra foto' : 'Hacer una foto del producto');
+    $('foto-cambiar').hidden = !hay || lleno;
+    $('foto-caja').setAttribute('aria-label', !hay ? 'Hacer una foto del producto'
+      : lleno ? 'Foto principal. Ya hay ' + C.LIMITES.fotos + ' fotos' : 'Hacer otra foto del producto');
+    $('foto-elegir').hidden = lleno;
+
+    var ol = $('fotos-lista');
+    ol.textContent = '';
+    ol.hidden = !hay;
+    fotos.forEach(function (f, i) {
+      var li = el('li', 'foto-item');
+      var mini = el('img');
+      mini.src = srcFoto(f);
+      mini.alt = '';
+      mini.width = 56;
+      mini.height = 56;
+      li.appendChild(mini);
+      if (i === 0) {
+        li.appendChild(el('span', 'foto-item__principal', 'Principal'));
+      } else {
+        var b = el('button', 'boton boton--linea foto-item__hacer', 'Hacer principal');
+        b.type = 'button';
+        b.dataset.foto = i;
+        b.dataset.accion = 'principal';
+        b.setAttribute('aria-label', 'Hacer principal la foto ' + (i + 1));
+        li.appendChild(b);
+      }
+      // «Quitar»: una papelera apartada a la derecha (con «Deshacer» en el aviso)
+      var q = el('button', 'foto-item__quitar');
+      q.type = 'button';
+      q.dataset.foto = i;
+      q.dataset.accion = 'quitar';
+      q.title = 'Quitar';
+      q.setAttribute('aria-label', 'Quitar foto ' + (i + 1));
+      q.appendChild(iconoPapelera());
+      li.appendChild(q);
+      ol.appendChild(li);
+    });
+    // «Grande en la portada» necesita una foto (si ya estaba puesto, se puede quitar igualmente)
+    var portada = $('f-portada');
+    portada.disabled = !hay && !portada.checked;
+    $('f-portada-nota').hidden = !portada.disabled;
+    if (enfoque) {
+      var destino = ol.querySelector('[data-foto="' + enfoque.i + '"][data-accion="' + enfoque.accion + '"]') ||
+        ol.querySelector('[data-accion="quitar"]') || $('foto-caja');
+      destino.focus();
+    }
+  }
+
+  function iconoPapelera() {
+    var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6M14 11v6'].forEach(function (d) {
+      var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', d);
+      s.appendChild(p);
+    });
+    return s;
   }
 
   function pintarPrevia() {
@@ -374,7 +449,12 @@
     var p = C.normalizarProducto(copiar(borrador), {});
     if (!p) p = C.normalizarProducto(Object.assign(copiar(borrador), { nombre: 'Nombre del producto' }), {});
     p.id = borrador.id;
-    ul.appendChild(window.Escaparate.crearTarjeta(p, contenido.tienda, { financiacion: contenido.financiacion.activa }));
+    ul.appendChild(window.Escaparate.crearTarjeta(p, contenido.tienda));
+    // El enlace a la ficha de la web, solo si ya está guardado y se ve en la web
+    var guardado = !esNuevo && buscar(borrador.id);
+    var ver = $('ficha-ver');
+    ver.hidden = !guardado || guardado.estado === 'vendido';
+    ver.href = 'index.html#p/' + encodeURIComponent(borrador.id);
   }
 
   // Lee el formulario al borrador. Devuelve la lista de campos con error (vacía = todo bien).
@@ -392,6 +472,15 @@
     borrador.etiqueta = valorRadio('etiqueta');
     borrador.descripcion = $('f-descripcion').value.replace(/\s+/g, ' ').trim();
     borrador.destacado = $('f-destacado').checked;
+    // Más detalles (opcional). La firmeza solo se pregunta en los colchones, pero se conserva si se cambia
+    borrador.descripcionLarga = $('f-larga').value;
+    borrador.medidas = $('f-medidas').value.replace(/\s+/g, ' ').trim();
+    borrador.colores = $('f-colores').value.replace(/\s+/g, ' ').trim();
+    borrador.firmeza = valorRadio('firmeza');
+    borrador.aMedida = $('f-amedida').checked;
+    borrador.plazo = $('f-plazo').value.replace(/\s+/g, ' ').trim();
+    $('f-firmeza-caja').hidden = borrador.categoria !== 'colchones';
+    contar($('f-larga'), $('f-larga-cuenta'), C.LIMITES.descripcionLarga);
 
     var tp = $('f-precio').value.trim();
     var precio = tp === '' ? null : leerPrecio(tp);
@@ -436,11 +525,13 @@
 
   function abrirFicha(p) {
     esNuevo = !p;
+    alAbrir = p ? copiar(p) : null;
     var usados = {};
     contenido.productos.forEach(function (x) { usados[x.id] = true; });
     borrador = p ? copiar(p) : {
       id: C.nuevoId('sofas', usados), nombre: '', categoria: 'sofas', precio: null, precioAntes: null,
-      etiqueta: '', estado: 'disponible', foto: '', descripcion: '', destacado: false
+      etiqueta: '', estado: 'disponible', fotos: [], descripcion: '', destacado: false,
+      descripcionLarga: '', medidas: '', colores: '', firmeza: '', aMedida: false, plazo: ''
     };
     $('ficha-titulo').textContent = esNuevo ? 'Nuevo producto' : 'Editar producto';
     $('ficha-ref').textContent = 'Ref. ' + borrador.id;
@@ -452,7 +543,18 @@
     $('f-antes').value = textoNumero(borrador.precioAntes);
     $('f-antes-caja').open = borrador.precioAntes !== null;
     $('f-destacado').checked = borrador.destacado;
+    $('f-portada').checked = !esNuevo && contenido.portada.destacado === borrador.id;
+    $('f-portada-caja').hidden = borrador.estado === 'vendido';
     $('f-descripcion').value = borrador.descripcion;
+    $('f-larga').value = borrador.descripcionLarga;
+    $('f-medidas').value = borrador.medidas;
+    $('f-colores').value = borrador.colores;
+    radio('firmeza', borrador.firmeza);
+    $('f-amedida').checked = borrador.aMedida;
+    $('f-plazo').value = borrador.plazo;
+    // Plegado en el alta rápida; abierto si ya tiene algún detalle
+    $('f-mas').open = !!(borrador.descripcionLarga || borrador.medidas || borrador.colores ||
+      borrador.firmeza || borrador.aMedida || borrador.plazo);
     $('foto-estado').textContent = '';
     $('ficha-error').textContent = '';
     $('ficha-cancelar').hidden = !esNuevo;
@@ -460,7 +562,7 @@
     $('ficha-nota').hidden = esNuevo;
     $('ficha-guardar').textContent = esNuevo ? 'Añadir a la web' : 'Guardar y cerrar';
     leerFicha();
-    pintarFoto();
+    pintarFotos();
     pintarPrevia();
     ficha.showModal();
     $('f-nombre').focus();
@@ -477,27 +579,44 @@
 
   // Al editar uno que ya existe, cada cambio correcto se guarda solo
   var temporizadorFicha;
+  // Campos de la ficha. Al guardar solo se escriben los que se han cambiado en ESTA pestaña desde que se
+  // abrió la ficha (comparando con alAbrir), sobre lo último guardado: así no se pisa lo que otra
+  // pestaña haya cambiado en ese producto (fotos, precio…). El estado (reservado/vendido) no se toca.
+  var CAMPOS_FICHA = ['nombre', 'categoria', 'precio', 'precioAntes', 'etiqueta', 'fotos', 'descripcion', 'destacado',
+    'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo'];
+  var alAbrir = null;  // el producto tal como estaba al abrir la ficha (o tras el último guardado de esta pestaña)
+
+  function camposCambiados() {
+    return CAMPOS_FICHA.filter(function (k) { return JSON.stringify(borrador[k]) !== JSON.stringify(alAbrir[k]); });
+  }
+
   function guardarEdicion() {
     clearTimeout(temporizadorFicha);
     if (esNuevo || !borrador) return { ok: true };
     var errores = leerFicha();
     if (errores.length) return { ok: false, errores: errores };
     var copia = copiar(borrador);
+    var cambiados = camposCambiados();
+    if (!cambiados.length) return { ok: true };
     var r = aplicar(function (c) {
       var x = enCopia(c, copia.id);
       if (!x) return false;
-      // Solo los datos de la ficha; el estado (reservado/vendido) puede haber cambiado en otra pestaña
-      ['nombre', 'categoria', 'precio', 'precioAntes', 'etiqueta', 'foto', 'descripcion', 'destacado']
-        .forEach(function (k) { x[k] = copia[k]; });
+      cambiados.forEach(function (k) { x[k] = copia[k]; });
     });
-    if (r.ok) $('ficha-error').textContent = '';
+    if (r.ok) {
+      var guardado = buscar(copia.id);
+      cambiados.forEach(function (k) { alAbrir[k] = guardado ? copiar(guardado[k]) : copia[k]; });
+      $('ficha-error').textContent = '';
+    }
     else $('ficha-error').textContent = r.motivo === 'cuota' ? MENSAJE_CUOTA : r.motivo === 'falta' ? MENSAJE_FALTA : MENSAJE_ERROR;
     return r;
   }
 
   function tieneAlgo() {
     return !!($('f-nombre').value.trim() || $('f-precio').value.trim() || $('f-antes').value.trim() ||
-      $('f-descripcion').value.trim() || (borrador && borrador.foto));
+      $('f-descripcion').value.trim() || $('f-larga').value.trim() || $('f-medidas').value.trim() ||
+      $('f-colores').value.trim() || $('f-plazo').value.trim() || $('f-amedida').checked || valorRadio('firmeza') ||
+      (borrador && borrador.fotos.length));
   }
 
   // Cerrar con la X, «Cancelar», Esc o tocando fuera
@@ -541,12 +660,14 @@
 
   function anadirNuevo() {
     var nuevo = copiar(borrador);
+    var enPortada = $('f-portada').checked;
     var r = aplicar(function (c) {
       if (c.productos.length >= C.LIMITES.productos) return false;
       var usados = {};
       c.productos.forEach(function (x) { usados[x.id] = true; });
       if (usados[nuevo.id]) nuevo.id = C.nuevoId(nuevo.categoria, usados);
       c.productos.unshift(nuevo);
+      if (enPortada) c.portada.destacado = nuevo.id;
     });
     if (!r.ok) {
       $('ficha-error').textContent = r.motivo === 'cuota' ? MENSAJE_CUOTA
@@ -570,7 +691,7 @@
       $('ficha-error').textContent = 'Has llegado al máximo de ' + C.LIMITES.productos + ' productos. Borra alguno vendido para añadir otro.';
       return;
     }
-    if (!C.fotoValida(borrador.foto)) {
+    if (!borrador.fotos.length) {
       confirmar({
         texto: '¿Añadirlo sin foto?', detalle: 'Saldrá un cartel con un dibujo. Puedes ponerle la foto más tarde.',
         si: 'Sí, añadir sin foto', no: 'Hacer la foto'
@@ -598,7 +719,7 @@
     }).then(function (si) {
       if (!si) return;
       var r = aplicar(function (c) { c.productos = c.productos.filter(function (x) { return x.id !== id; }); });
-      if (r.ok) { cerrarFicha(); avisar('Borrado: ' + nombre); }
+      if (r.ok) { cerrarFicha(); avisar('Borrado: ' + nombre + (r.portadaQuitada ? '. La portada queda sin destacado.' : '')); }
     });
   });
 
@@ -634,45 +755,133 @@
     });
   }
 
+  // En un producto nuevo (aún sin guardar) se comprueba si cabría en el navegador: se prueba a guardar
+  // aparte un texto del mismo tamaño que la ficha y se borra al momento
+  function cabeNuevo() {
+    var clave = C.CLAVE + '-prueba';
+    try {
+      window.localStorage.setItem(clave, new Array(JSON.stringify(borrador).length + 1).join('x'));
+      window.localStorage.removeItem(clave);
+      return true;
+    } catch (e) {
+      try { window.localStorage.removeItem(clave); } catch (e2) { /* nada */ }
+      return false;
+    }
+  }
+
+  // Se pueden elegir varias de la galería: se añaden por orden hasta llegar a 4
   function alElegirFoto(e) {
     var input = e.target;
-    var archivo = input.files && input.files[0];
+    var archivos = Array.prototype.slice.call(input.files || []);
     input.value = '';
-    if (!archivo || !borrador) return;
+    if (!archivos.length || !borrador) return;
+    var sitio = C.LIMITES.fotos - borrador.fotos.length;
+    if (sitio <= 0) { $('foto-estado').textContent = 'Ya hay ' + C.LIMITES.fotos + ' fotos. Quita una para poner otra.'; return; }
+    var sobran = archivos.length > sitio;
+    archivos = archivos.slice(0, sitio);
     fotoTrabajando = true;
     $('foto-estado').textContent = 'Preparando la foto…';
-    prepararFoto(archivo).then(function (datos) {
-      fotoTrabajando = false;
-      if (!borrador) return;
-      var anterior = borrador.foto;
-      borrador.foto = datos;
-      var r = guardarEdicion();
-      if (!r.ok && r.motivo === 'cuota') {
-        borrador.foto = anterior;
-        $('foto-estado').textContent = MENSAJE_CUOTA;
-      } else {
-        $('foto-estado').textContent = 'Foto lista ✓';
+    var hechas = 0;
+    var fallo = '';
+    var siguiente = function () {
+      if (!archivos.length || fallo) {
+        fotoTrabajando = false;
+        $('foto-estado').textContent = fallo || ((hechas === 1 ? 'Foto lista ✓' : hechas + ' fotos listas ✓') +
+          (sobran ? ' Solo caben ' + C.LIMITES.fotos + '.' : ''));
+        pintarFotos();
+        pintarPrevia();
+        return;
       }
-      pintarFoto();
-      pintarPrevia();
-    }, function () {
-      fotoTrabajando = false;
-      $('foto-estado').textContent = 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
-    });
+      prepararFoto(archivos.shift()).then(function (datos) {
+        if (!borrador) { fotoTrabajando = false; return; }
+        if (borrador.fotos.indexOf(datos) !== -1) { siguiente(); return; } // la misma foto dos veces
+        borrador.fotos.push(datos);
+        var r = esNuevo ? { ok: cabeNuevo(), motivo: 'cuota' } : guardarEdicion();
+        if (!r.ok && r.motivo === 'cuota') {
+          borrador.fotos.pop();
+          fallo = MENSAJE_CUOTA;
+        } else {
+          hechas++;
+        }
+        siguiente();
+      }, function () {
+        fallo = 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
+        siguiente();
+      });
+    };
+    siguiente();
   }
   $('foto-camara').addEventListener('change', alElegirFoto);
   $('foto-galeria').addEventListener('change', alElegirFoto);
-  $('foto-caja').addEventListener('click', function () { $('foto-camara').click(); });
-  $('foto-elegir').addEventListener('click', function () { $('foto-galeria').click(); });
-  $('foto-quitar').addEventListener('click', function () {
-    if (!borrador) return;
-    borrador.foto = '';
-    guardarEdicion();
-    $('foto-estado').textContent = 'Foto quitada. Saldrá un cartel con un dibujo.';
-    pintarFoto();
-    pintarPrevia();
-    $('foto-caja').focus();
+  $('foto-caja').addEventListener('click', function () {
+    if (borrador && borrador.fotos.length >= C.LIMITES.fotos) {
+      $('foto-estado').textContent = 'Ya hay ' + C.LIMITES.fotos + ' fotos. Quita una para poner otra.';
+      return;
+    }
+    $('foto-camara').click();
   });
+  $('foto-elegir').addEventListener('click', function () { $('foto-galeria').click(); });
+  // «Destacar en portada»: solo uno a la vez. En un producto nuevo se aplica al añadirlo
+  $('f-portada').addEventListener('change', function () {
+    if (!borrador || esNuevo) return;
+    var id = borrador.id;
+    var si = $('f-portada').checked;
+    var r = aplicar(function (c) {
+      if (!enCopia(c, id)) return false;
+      if (si) c.portada.destacado = id;
+      else if (c.portada.destacado === id) c.portada.destacado = '';
+    });
+    if (r.ok) avisar(si ? 'En la portada: ' + borrador.nombre : 'Quitado de la portada');
+    else $('f-portada').checked = !si;
+    pintarPortadaPanel();
+  });
+  $('fotos-lista').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-accion]');
+    if (!b || !borrador) return;
+    var i = parseInt(b.dataset.foto, 10);
+    var foto = borrador.fotos[i];
+    if (!foto) return;
+    if (b.dataset.accion === 'principal') {
+      borrador.fotos.splice(i, 1);
+      borrador.fotos.unshift(foto);
+      $('foto-estado').textContent = 'Foto principal cambiada ✓';
+      guardarEdicion();
+      pintarFotos({ i: 1, accion: 'principal' });
+    } else {
+      borrador.fotos.splice(i, 1);
+      $('foto-estado').textContent = '';
+      guardarEdicion();
+      pintarFotos({ i: Math.min(i, borrador.fotos.length - 1), accion: 'quitar' });
+      deshacerQuitarFoto(borrador.id, esNuevo, foto, i);
+    }
+    pintarPrevia();
+  });
+
+  // «Foto quitada · Deshacer»: la vuelve a poner en su sitio (en la ficha abierta o, si ya se cerró, en el producto)
+  function deshacerQuitarFoto(id, eraNuevo, foto, i) {
+    avisar('Foto quitada', {
+      accion: {
+        texto: 'Deshacer',
+        hacer: function () {
+          if (borrador && borrador.id === id) {
+            if (borrador.fotos.length >= C.LIMITES.fotos || borrador.fotos.indexOf(foto) !== -1) return;
+            borrador.fotos.splice(Math.min(i, borrador.fotos.length), 0, foto);
+            guardarEdicion();
+            pintarFotos();
+            pintarPrevia();
+            avisar('Foto recuperada');
+          } else if (!eraNuevo) {
+            var r = aplicar(function (c) {
+              var x = enCopia(c, id);
+              if (!x || x.fotos.length >= C.LIMITES.fotos || x.fotos.indexOf(foto) !== -1) return false;
+              x.fotos.splice(Math.min(i, x.fotos.length), 0, foto);
+            });
+            if (r.ok) { avisar('Foto recuperada'); pintarLista(); }
+          }
+        }
+      }
+    });
+  }
 
   $('anadir').addEventListener('click', function () {
     if (contenido.productos.length >= C.LIMITES.productos) {
@@ -954,6 +1163,88 @@
   });
   $('entradilla').addEventListener('input', function () { pintarPreviaTextos(); guardarEntradilla(); });
 
+  // ---------- Portada: producto destacado y foto de la tienda ----------
+
+  function textoPrecio(p) { return p.precio === null ? 'Consultar' : C.formatearPrecio(p.precio); }
+
+  function pintarPortadaPanel() {
+    var caja = $('destacados');
+    var elegido = contenido.portada.destacado;
+    var conFoco = caja.contains(document.activeElement) ? document.activeElement.value : null;
+    caja.textContent = '';
+    // Los que no tienen foto, al final, atenuados y sin poder elegirse (salvo que ya fuera el destacado)
+    var enWeb = contenido.productos.filter(function (p) { return p.estado !== 'vendido'; });
+    var conFoto = enWeb.filter(function (p) { return C.fotoPrincipal(p); });
+    var sinFoto = enWeb.filter(function (p) { return !C.fotoPrincipal(p); });
+    var opciones = [{ id: '', nombre: 'Ninguno: solo la foto de la tienda' }].concat(conFoto, sinFoto);
+    opciones.forEach(function (p) {
+      var bloqueado = !!p.id && !C.fotoPrincipal(p) && p.id !== elegido;
+      var label = el('label', 'destacado' + (bloqueado ? ' destacado--sin-foto' : ''));
+      var r = el('input');
+      r.type = 'radio';
+      r.name = 'destacado';
+      r.value = p.id;
+      r.checked = p.id === elegido;
+      r.disabled = bloqueado;
+      label.appendChild(r);
+      var cuerpo = el('span', 'destacado__caja');
+      if (p.id) {
+        var mini = el('span', 'destacado__foto');
+        var f = C.fotoPrincipal(p);
+        if (f) {
+          var img = el('img');
+          img.src = srcFoto(f);
+          img.alt = '';
+          mini.appendChild(img);
+        } else {
+          mini.appendChild(el('span', 'item__sin-foto', 'Sin foto'));
+        }
+        cuerpo.appendChild(mini);
+      }
+      var datos = el('span', 'destacado__datos');
+      datos.appendChild(el('span', 'destacado__nombre', p.nombre));
+      if (p.id) datos.appendChild(el('span', 'destacado__precio', textoPrecio(p) + (p.estado === 'reservado' ? ' · Reservado' : '')));
+      cuerpo.appendChild(datos);
+      label.appendChild(cuerpo);
+      caja.appendChild(label);
+      if (conFoco !== null && conFoco === p.id) r.focus();
+    });
+    $('tienda-foto-img').src = srcFoto(contenido.portada.foto);
+    window.Escaparate.pintarPortada(contenido, $('portada-previa'));
+  }
+
+  function destacar(id) {
+    var r = aplicar(function (c) { c.portada.destacado = id; });
+    if (r.ok) {
+      var p = buscar(id);
+      avisar(p ? 'En la portada: ' + p.nombre : 'Portada sin producto destacado');
+    }
+    pintarPortadaPanel();
+    return r;
+  }
+
+  $('destacados').addEventListener('change', function (e) {
+    if (e.target.name === 'destacado') destacar(e.target.value);
+  });
+
+  function alElegirFotoTienda(e) {
+    var archivo = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!archivo) return;
+    $('tienda-foto-estado').textContent = 'Preparando la foto…';
+    prepararFoto(archivo).then(function (datos) {
+      var r = aplicar(function (c) { c.portada.foto = datos; });
+      $('tienda-foto-estado').textContent = r.ok ? 'Foto lista ✓' : r.motivo === 'cuota' ? MENSAJE_CUOTA : MENSAJE_ERROR;
+      pintarPortadaPanel();
+    }, function () {
+      $('tienda-foto-estado').textContent = 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
+    });
+  }
+  $('tienda-foto-camara').addEventListener('change', alElegirFotoTienda);
+  $('tienda-foto-galeria').addEventListener('change', alElegirFotoTienda);
+  $('tienda-foto-hacer').addEventListener('click', function () { $('tienda-foto-camara').click(); });
+  $('tienda-foto-elegir').addEventListener('click', function () { $('tienda-foto-galeria').click(); });
+
   // ---------- Contacto (cada campo se guarda por separado) ----------
 
   function validarTelefono() {
@@ -995,6 +1286,12 @@
     limitarLineas($('direccion'), C.LIMITES.lineasDireccion, 'direccion');
     guardarDireccion();
   });
+  // Zona de entrega (opcional): vacía, la web dice «consulta zona»
+  var guardarZona = conRetraso(function () {
+    var zona = $('zona-entrega').value.replace(/\s+/g, ' ').trim();
+    guardadoForm(aplicar(function (c) { c.tienda.zonaEntrega = zona; }));
+  });
+  $('zona-entrega').addEventListener('input', guardarZona);
 
   // ---------- Confianza: opiniones, financiación, marcas y año (cada parte se guarda por separado) ----------
 
@@ -1187,9 +1484,11 @@
     poner('titular', contenido.portada.titular);
     poner('entradilla', contenido.portada.entradilla);
     pintarPreviaTextos();
+    pintarPortadaPanel();
     poner('telefono', contenido.tienda.telefono);
     poner('whatsapp', C.whatsappLegible(contenido.tienda.whatsapp));
     poner('direccion', contenido.tienda.direccion);
+    poner('zona-entrega', contenido.tienda.zonaEntrega);
     validarTelefono();
     validarWhatsapp();
     pintarConfianza(respetarFoco);
@@ -1216,9 +1515,21 @@
     contenido = window.cargarContenido();
     pintarLista();
     pintarFormularios(true);
+    var fotosCambiadas = false;
+    if (ficha.open && !esNuevo && borrador) {
+      if (document.activeElement !== $('f-portada')) $('f-portada').checked = contenido.portada.destacado === borrador.id;
+      // Si otra pestaña ha cambiado las fotos de este producto, se traen a la ficha abierta
+      var x = buscar(borrador.id);
+      if (x && JSON.stringify(x.fotos) !== JSON.stringify(alAbrir.fotos)) {
+        borrador.fotos = copiar(x.fotos);
+        alAbrir.fotos = copiar(x.fotos);
+        pintarFotos();
+        fotosCambiadas = true;
+      }
+    }
     if (ficha.open) pintarPrevia();
-    avisar(ficha.open
-      ? 'Se han hecho cambios en otra pestaña. La ficha abierta sigue con lo tuyo.'
+    avisar(fotosCambiadas ? 'Se han cambiado las fotos en otra pestaña'
+      : ficha.open ? 'Se han hecho cambios en otra pestaña. La ficha abierta sigue con lo tuyo.'
       : 'Se han hecho cambios en otra pestaña: ya los ves aquí.');
   });
 
