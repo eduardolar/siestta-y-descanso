@@ -15,20 +15,41 @@ y abrir http://127.0.0.1:8091/
 ## Estructura
 
 Arriba, una barra roja fina con la dirección, «abierto / cerrado» y «Cómo llegar». Después:
-**portada** roja (titular, «Desde 2003», WhatsApp y «Pide cita para probar», la foto de la tienda con la
-oferta destacada encima), **ventajas** (pruébalo en tienda, a tu medida, entrega, financiación), **banda de
-exposición** a todo el ancho, **escaparate** (filtros, 3 productos en escritorio y 4 en el móvil con «Ver
-los N productos», y una franja para mayores y familias), **banda «Un colchón online no se prueba. Este
-sí.»** con los 4 pasos de «A tu medida», **opiniones de Google** (y las marcas, si las hay), **Visítanos**
-y el **pie** con redes y «Acceso tienda». Lo que el panel deja vacío no se enseña.
+**portada** roja (titular, «Desde 2003», WhatsApp y una foto grande: la del **producto destacado**, con una
+tarjeta de nombre y precio que abre su ficha, o, si no hay destacado, solo la de la tienda),
+**ventajas** (pruébalo en tienda, a tu medida, entrega con su zona —«Entrega en Tomelloso y pueblos
+cercanos», o «consulta zona» si se deja vacía—, financiación), **banda de exposición** a todo el ancho
+(titular, «Pocas unidades» debajo y «Ver ofertas»), **«Ahora en tienda»** (filtros, 3 productos en escritorio
+y 4 en el móvil con «Ver los N productos», y una franja para mayores y familias; toda la tarjeta abre la ficha,
+con «›» junto al nombre), **banda «Un colchón online no se prueba. Este sí.»** (titular en una línea y los 4
+pasos en una fila: número, pictograma y texto), **opiniones de Google** (y las marcas, si las hay), **Visítanos** y el **pie** con redes y
+«Acceso tienda». Lo que el panel deja vacío no se enseña. Textos mínimos: sin antetítulos ni frases que
+repitan el título. En las tarjetas y en la ficha solo hay dos acciones: «Reservar» (o «Avisadme si queda
+libre») y «Preguntar».
+
+### Ficha de producto
+
+Tocar una tarjeta (menos sus botones) o la tarjeta de la portada abre su **ficha** (`<dialog>`): a
+pantalla completa en el móvil y, en escritorio y tableta, centrada, en dos columnas y del alto de su contenido
+(como mucho el de la ventana; si no cabe, la columna de la derecha hace scroll por dentro). Lleva galería de
+hasta 4 fotos (deslizable, con miniaturas, «2/4» y, en escritorio, flechas), etiqueta, nombre (hasta 3
+líneas), precio, sello «Reservado» si lo está, descripción larga, los detalles que haya (Medidas, Telas,
+Firmeza —solo colchones—, A medida, Plazo) y «Más {categoría}» (hasta 3 productos; si no hay bastantes, se
+completa con otros y pasa a «Más»). Abajo, siempre a la vista, la barra de acciones: «Reservar» (o «Avisadme si
+queda libre»), «Preguntar» y un icono para compartir. Se cierra con la X, Esc, tocando fuera o con «atrás».
+
+Cada ficha tiene **enlace propio**: `index.html#p/SOF-02` (vale en minúsculas). Al abrirla desde la web se
+añade al historial y «atrás» la cierra; si se carga (o se recarga) la página con ese enlace, se abre sin añadir
+entradas. Si la referencia no existe o está vendida, no se abre y se limpia el enlace. «Compartir» usa el menú
+del sistema o, si no hay, copia el enlace («Enlace copiado»).
 
 Diseño «tienda de oferta», con los colores de su logo y de sus carteles de redes: fondo blanco/gris claro
 para que luzcan las fotos, rojo Siestta en barras, portada, bandas y botones, y amarillo solo en las
 etiquetas de precio y de exposición. Titulares y precios en Inter Display (800–900) y texto en Inter,
 servidas desde `fonts/` (licencia OFL al lado, sin CDNs), con `font-display: swap` y precarga. Fotos a sangre
 en las tarjetas, sin marcos ni giros; como son pequeñas, no se muestran a más de ~1,4× su tamaño. Verde solo
-en los botones de WhatsApp. La oferta de la portada es la primera pieza de exposición con precio, en el
-orden del panel; si no hay ninguna, no sale.
+en los botones de WhatsApp. El producto destacado de la portada lo elige el panel (en el ejemplo, el
+colchón de 299 €, para que la foto y el precio sean del mismo producto).
 
 - `index.html`: la página (con los datos de la tienda en `application/ld+json` para Google).
   Lleva escritos los valores por defecto (textos, horario y productos de ejemplo), así se ve bien
@@ -39,11 +60,16 @@ orden del panel; si no hay ninguna, no sale.
 - `js/contenido.js`: los datos (`CONTENIDO_EJEMPLO`), y `cargarContenido()`, `guardarContenido()` y
   `restaurarEjemplo()`. Guarda en `localStorage` con la clave `siestta-contenido-v1`; el campo `version`
   permite migrar si cambia el formato (versión 2: llegan opiniones, financiación, marcas y «desde»; los datos
-  de la versión 1 se completan con los del ejemplo). Todo lo que se lee se revisa (textos, precios, fotos solo `img/…`
-  o JPEG/PNG/WebP incrustadas, WhatsApp `34` + 9 cifras).
-- `js/escaparate.js`: el escaparate (tarjetas, filtros, sello «Reservado», botón «Reservar» por WhatsApp
+  de la versión 1 se completan con los del ejemplo. Versión 3: cada producto pasa de `foto` a `fotos` —hasta
+  4, la primera es la principal; úsese `Contenido.fotoPrincipal(p)`— y llegan `descripcionLarga`, `medidas`,
+  `colores`, `firmeza`, `aMedida` y `plazo`, vacíos al migrar; la tienda gana `zonaEntrega` y la portada
+  `destacado` y `foto`). Todo lo que se lee se revisa (textos, precios, fotos solo `img/…`
+  o JPEG/PNG/WebP incrustadas, WhatsApp `34` + 9 cifras; el destacado solo vale si el producto se ve en la web).
+- `js/escaparate.js`: «Ahora en tienda» (tarjetas, filtros, sello «Reservado», botón «Reservar» por WhatsApp
   con el mensaje ya escrito, «Ver los N productos», la tarjeta para mayores y la tira de exposición, que
-  solo sale si hay piezas de exposición a la venta y cuyo botón activa el filtro «Ofertas»).
+  solo sale si hay piezas de exposición a la venta y cuyo botón activa el filtro «Ofertas») y la foto y la
+  tarjeta del producto destacado de la portada.
+- `js/ficha.js`: la ficha de producto y su enlace `#p/{ref}`.
 - `js/main.js`: aviso, titular, contacto, horario y el «Abierto ahora / abrimos el lunes a las…» con la hora
   de Madrid. También pone el teléfono del panel en los datos para Google (`application/ld+json`); el resto de
   esos datos (dirección, horario) sigue fijo en el HTML: si cambian, hay que tocarlos a mano.
@@ -57,31 +83,43 @@ Al cambiar CSS o JS, sube el `?v=` de todos los enlaces y las constantes de vers
 ## Cómo usar el panel
 
 Abre `admin.html` (o «Acceso tienda» al pie de la web). Todo se guarda solo: arriba sale «Guardado ✓» y
-abajo aparece un aviso flotante con lo que se ha hecho («Reservado: …», «Añadido a la web», «Guardado»).
-Los errores salen junto al campo que hay que corregir.
+abajo aparece un aviso flotante con lo que se ha hecho («Reservado: …», «Añadido a la web», «Guardado»): los
+informativos se van solos a los 3 s y no tapan los toques; los que llevan «Deshacer» duran 5 s; los de error
+se quedan hasta «Cerrar». Los errores salen junto al campo que hay que corregir.
 
-- **Productos**: «+ Añadir producto» abre una ficha: foto (tocar el cuadrado hace una foto; «Elegir de la
-  galería» coge una ya hecha), nombre, qué es, precio (vacío o 0 = «Consultar»), «Poner precio rebajado»,
-  etiqueta en la foto (Exposición, Oferta, Últimas unidades), «Mostrarlo el primero en la web» y una
-  descripción corta. Al lado (abajo en el móvil) se ve cómo quedará. Si no tiene foto, pregunta antes de
-  añadirlo; si se cierra una ficha nueva con datos, pregunta «¿Descartar este producto?».
+- **Productos**: «+ Añadir producto» abre una ficha: hasta 4 fotos (tocar el cuadrado hace una foto; «Elegir
+  de la galería» coge una o varias; la primera es la principal; las demás tienen «Hacer principal» y cada una
+  una papelera, con «Foto quitada · Deshacer»), nombre, qué es, precio (vacío o 0 = «Consultar»), «Poner precio
+  rebajado», «Primero en la lista», «Grande en la portada» (necesita foto), etiqueta en la foto (Exposición,
+  Oferta, Últimas unidades) y una descripción corta. En «Más detalles (opcional)», plegado para que el alta siga siendo rápida: descripción larga (hasta
+  1000), medidas, telas y colores, firmeza (solo si es un colchón), «Se puede pedir a medida» y plazo
+  orientativo. Al lado (abajo en el móvil) se ve la tarjeta y, si ya está guardado, «Ver la ficha en la web».
+  Si no tiene foto, pregunta antes de añadirlo; si se cierra una ficha nueva con datos, pregunta «¿Descartar
+  este producto?».
   En la lista: «Marcar reservado» / «Quitar reserva», «Marcar vendido» (deja de verse en la web, con
   «Deshacer» unos segundos; se recupera en «Vendidos») y «Editar». «Borrar este producto» está dentro de
   la ficha, con confirmación. Como mucho 200 productos.
 - **Horario y avisos**: el texto del aviso (con botones rápidos «Cerrado por vacaciones», «Cerrado por
   feria», «Hoy cerramos antes») y el botón «Poner el aviso en la web» / «Quitar el aviso». El horario:
   días y horas de cada horario (con o sin cierre a mediodía) o «Cerrado esos días».
-- **Textos de la portada**: el titular (hasta 3 líneas; la última sale en rojo) y la frase de debajo.
+- **Portada**: el producto destacado (los que están en la web con foto; los que no tienen foto salen al final,
+  atenuados, y no se pueden elegir; o «Ninguno: solo la foto de la tienda»), la
+  foto de la tienda (hacer o elegir; se reduce como las demás), el titular (hasta 3 líneas; la última sale en
+  amarillo), la frase de debajo y la vista previa. Si se vende o se borra el destacado, la portada se queda
+  sin destacado y el panel lo avisa («Deshacer» lo devuelve).
 - **Confianza**: nota y número de opiniones de Google, hasta 6 opiniones (texto y nombre), financiación
   (casilla y condiciones opcionales; no pongas condiciones que no sean seguras), marcas (hasta 12) y el año
   «Desde». Lo que se deja vacío desaparece de la web.
 - **Contacto**: teléfono, móvil de WhatsApp (vale «621 23 05 88», con +34, 0034, espacios o guiones: se
-  guarda como 34621230588) y dirección (hasta 3 líneas).
-- **Restaurar ejemplo**, al final: vuelve a los datos de ejemplo.
+  guarda como 34621230588), dirección (hasta 3 líneas) y zona de entrega (opcional, hasta 80: sale como
+  «Entrega en …»; vacía, «Entrega a domicilio · consulta zona»).
+- **Restaurar ejemplo**, al pie (con confirmación): vuelve a los datos de ejemplo.
 
-Las fotos se reducen a 900 px de lado en JPEG antes de guardarlas. Si el panel está abierto en dos
-pestañas, cada una guarda solo lo que cambia (un producto o un campo) sobre lo último guardado, y la otra
-se actualiza sola sin tocar lo que se está escribiendo.
+Las fotos se reducen a 900 px de lado en JPEG antes de guardarlas; si una no cabe en el navegador, el panel lo
+dice y no la añade (en un producto nuevo se comprueba antes de guardarlo). Si el panel está abierto en dos
+pestañas, cada una guarda solo lo que cambia (en la ficha de un producto, solo los campos tocados en esa
+pestaña) sobre lo último guardado, y la otra se actualiza sola sin tocar lo que se está escribiendo; si otra
+pestaña cambia las fotos de la ficha abierta, se traen y se avisa.
 
 ## Límite importante: se guarda solo en ese navegador
 

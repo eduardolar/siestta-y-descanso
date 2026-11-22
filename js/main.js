@@ -193,6 +193,15 @@
     }
   }
 
+  // La entrega no llega a todas partes: se dice la zona, o «consulta zona» si el panel la deja vacía
+  function pintarEntrega(tienda) {
+    var chip = document.getElementById('ventaja-entrega');
+    if (chip) {
+      chip.querySelector('.ventajas__texto').textContent = tienda.zonaEntrega
+        ? 'Entrega en ' + tienda.zonaEntrega : 'Entrega a domicilio · consulta zona';
+    }
+  }
+
   function pintarMarcas(marcas) {
     var p = document.getElementById('marcas');
     if (!p) return;
@@ -200,7 +209,7 @@
     p.hidden = marcas.length === 0;
     if (!marcas.length) return;
     var t = document.createElement('strong');
-    t.textContent = 'Marcas con las que trabajamos: ';
+    t.textContent = 'Marcas: ';
     p.appendChild(t);
     p.appendChild(document.createTextNode(marcas.join(' · ')));
   }
@@ -210,6 +219,7 @@
     pintarAviso(contenido.tienda);
     pintarPortada(contenido.portada);
     pintarContacto(contenido.tienda);
+    pintarEntrega(contenido.tienda);
     pintarHorario(contenido.tienda);
     pintarEstado(contenido.tienda);
     pintarDesde(contenido.desde);
