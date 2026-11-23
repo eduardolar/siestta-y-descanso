@@ -152,10 +152,29 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   background: var(--blanco);
   border-bottom: 1px solid var(--linea);
 }
-.cabecera__fila { display: flex; align-items: center; gap: 28px; min-height: 72px; }
-.marca { display: block; }
-.marca img { height: 50px; width: auto; }
-.nav { display: flex; gap: 26px; margin-left: auto; }
+.cabecera__fila { display: flex; align-items: center; gap: 24px; min-height: 80px; transition: min-height .2s; }
+.marca { display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--tinta); }
+.marca img { height: 58px; width: auto; transition: height .2s; }
+.marca__lema { padding-left: 14px; border-left: 2px solid var(--linea); font-size: .85rem; font-weight: 700; line-height: 1.25; color: var(--tinta-suave); white-space: nowrap; }
+.nav { display: flex; gap: 22px; margin-left: auto; }
+/* Teléfono a la vista (mucha gente prefiere llamar) */
+.cabecera__tel {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
+  font-weight: 800; font-size: 1rem; color: var(--tinta); text-decoration: none; white-space: nowrap;
+}
+.cabecera__tel svg { width: 20px; height: 20px; color: var(--s-marca, var(--rojo)); }
+.cabecera__tel:hover span { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+/* Al bajar por la página: más fina y con sombra (js/main.js pone la clase) */
+.cabecera { transition: box-shadow .2s; }
+.cabecera--fina { box-shadow: 0 4px 14px rgb(26 20 20 / .12); }
+.cabecera--fina .cabecera__fila { min-height: 60px; }
+.cabecera--fina .marca img { height: 42px; }
+@media (prefers-reduced-motion: reduce) { .cabecera, .cabecera__fila, .marca img { transition: none; } }
+@media (max-width: 1240px) { .marca__lema { display: none; } }
+/* Con el enlace de la temporada en el menú, la frase del logo deja sitio */
+@media (max-width: 1440px) { .cabecera:has(.nav a[href="#temporada"]) .marca__lema { display: none; } }
+@media (max-width: 1180px) { .cabecera:has(.nav a[href="#temporada"]) .nav a[href="#medida"] { display: none; } .nav { gap: 18px; } }
+@media (max-width: 1080px) { .cabecera__tel span { display: none; } }
 .nav a {
   display: inline-flex; align-items: center; min-height: 44px;
   text-decoration: none; font-weight: 700; font-size: .95rem; color: var(--tinta);
@@ -526,7 +545,7 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 /* ---------- Tableta ---------- */
 @media (max-width: 960px) {
   .nav { display: none; }
-  .cabecera .boton--peque { margin-left: auto; }
+  .cabecera__tel { margin-left: auto; } /* sin menú, teléfono y WhatsApp juntos a la derecha */
   .portada__fila { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); min-height: 420px; }
   .portada__texto { padding: 40px 32px 44px 0; }
   .oferta-destacada { left: -24px; bottom: 24px; width: 220px; }
@@ -546,9 +565,9 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .barra-sup__dir { display: none; }
   .barra-sup { font-size: .78rem; }
   .barra-sup__fila { gap: 0 14px; }
-  .cabecera__fila { min-height: 60px; }
-  .cabecera .boton--peque { display: none; }
-  .marca img { height: 40px; }
+  .cabecera__fila, .cabecera--fina .cabecera__fila { min-height: 60px; }
+  .cabecera .boton--peque, .cabecera__tel { display: none; } /* en el móvil, la barra fija de abajo ya tiene Llamar y WhatsApp */
+  .marca img, .cabecera--fina .marca img { height: 40px; }
 
   /* Portada: titular arriba y la foto de la tienda a todo el ancho debajo */
   .portada__fila { grid-template-columns: minmax(0, 1fr); min-height: 0; }
@@ -1060,16 +1079,17 @@ html.skin.tema--rebajas .deco .deco-rebajas,
 html.skin.tema--feria .deco .deco-feria { display: block; }
 
 html.skin .portada { position: relative; overflow: hidden; }
-html.skin .portada__fila { position: relative; z-index: 1; }
+/* Sin z-index propio (no hace capa aparte): así la tarjeta del precio (z 2) puede quedar por encima de los Reyes (z 1);
+   el texto va posicionado para pintarse por encima del fondo de nieve (z 0) */
+html.skin .portada__fila { position: relative; }
+html.skin .portada__texto { position: relative; }
 /* Sitio arriba para la tira (espumillón / banderines) */
 html.skin .portada__texto { padding-top: 86px; }
 
-/* Capa de fondo (detrás del texto): nieve en Navidad, confeti en Feria */
+/* Capa de fondo (detrás del texto): en Navidad, la nevada (js/nieve.js, en un lienzo) y el horizonte; confeti en Feria */
 .deco-fondo { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .deco-fondo .copo { position: absolute; top: -12px; display: none; border-radius: 50%; will-change: transform; }
-html.skin.tema--navidad .deco-fondo .copo,
 html.skin.tema--feria .deco-fondo .copo { display: block; }
-html.skin.tema--navidad .copo { width: 7px; height: 7px; background: rgb(255 255 255 / .55); animation: caer 14s linear infinite; }
 html.skin.tema--feria .copo { width: 8px; height: 12px; border-radius: 2px; animation: caer 11s linear infinite, girar-confeti 3s linear infinite; }
 html.skin.tema--feria .copo:nth-child(3n) { background: rgb(196 32 50 / .55); }
 html.skin.tema--feria .copo:nth-child(3n+1) { background: rgb(26 111 176 / .5); }
@@ -1198,6 +1218,7 @@ html.skin .producto--temporada .producto__foto::after {
   .cinta-rebajas { top: 18px; right: -92px; width: 280px; font-size: .85rem; }
   .copo:nth-child(n+7) { display: none !important; }
   .bola--1 { width: 34px; } .bola--2 { width: 30px; } .bola--3 { width: 38px; }
+  .estrella-navidad { top: 16px !important; right: 52%; width: 32px; } /* sin pisar la tarjeta del precio, que con Navidad sube */
   .etiqueta-colgada { width: 52px !important; } .etiqueta-colgada--1 { display: none !important; }
   .sello--1 { width: 84px; top: 70px !important; } .sello--2 { width: 58px; top: 20px !important; }
   .farolillo { width: 40px !important; }
@@ -1209,7 +1230,142 @@ html.deco-quieta .deco *, html.deco-quieta .portada__texto::before, html.deco-qu
 /* «Reducir movimiento» (preferencia del sistema): todo quieto; ni nieve ni confeti */
 @media (prefers-reduced-motion: reduce) {
   .deco *, html.skin .portada__texto::before, html.skin .pastilla--oferta, .banda-temporada__pista { animation: none !important; }
-  .deco-fondo { display: none !important; }
+  .deco-fondo .copo, .deco-fondo .nieve { display: none !important; } /* el horizonte se queda, quieto */
   .banda-temporada__pista { width: auto; justify-content: center; }
   .banda-temporada__grupo + .banda-temporada__grupo, .banda-temporada__grupo > :nth-child(n+3) { display: none; }
 }
+
+/* ---------- Navidad: cruces de Papá Noel (de derecha a izquierda, por arriba, en arco) y los Reyes Magos (de izquierda
+   a derecha, por la duna). Una sola animación de 56 s para los dos, desfasada: Noel pasa a los 2 s (12 s de cruce) y los
+   Reyes a los 30 s (14 s); así nunca coinciden. Solo transform y opacity; quietos fuera de la vista o con la pestaña
+   oculta (deco-quieta) y con «reducir movimiento» no salen (el horizonte se queda, quieto).
+   Sitio: la portada con Navidad crece poco (arriba, lo justo para la guirnalda; abajo, una duna baja del mismo verde).
+   Papá Noel entra a la altura de la guirnalda sobre la foto y, al llegar a la columna del texto, sube y se va por arriba:
+   nunca baja hasta el rótulo ni el titular. Los Reyes andan por la duna, por debajo del botón y de la tarjeta del precio
+   (que con Navidad sube un poco). Tocar el trineo deja caer un regalo (js/escaparate.js) ---------- */
+.deco-cruces { position: absolute; inset: 0; z-index: 3; overflow: hidden; }
+/* Duna y Reyes: por encima de la foto y del texto, por debajo de la tarjeta del precio (z 2) */
+.deco-reyes { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+html.skin.tema--navidad .portada { padding-bottom: 38px; }
+html.skin.tema--navidad .portada__texto { padding-top: 100px; padding-bottom: 92px; } /* arriba, sitio para el trineo entero; abajo, el botón siempre por encima de los Reyes */
+html.skin.tema--navidad .deco-tira { height: 56px; }
+html.skin.tema--navidad .oferta-destacada { bottom: 54px; }
+/* Duna baja, del mismo verde algo más claro, con nieve acumulada encima */
+.duna { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 38px; }
+.duna path { fill: #2a5f48; }
+.duna .duna__nieve { fill: none; stroke: rgb(255 255 255 / .85); stroke-width: 4; stroke-linecap: round; }
+/* Horizonte manchego (detrás del texto, al fondo de la duna) */
+.horizonte { position: absolute; left: 0; right: 0; bottom: 26px; width: 100%; height: 80px; }
+.horizonte path { fill: #18402f; }
+.horizonte__aspas { transform-box: fill-box; }
+/* Nevada: lienzo a toda la portada, detrás del texto y de la tarjeta */
+.nieve { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.cruce { position: absolute; will-change: transform; }
+/* Papá Noel: 340 px a 1366 (trineo con renos ≈ 275 px), algo menos en tableta. Reyes ≈ 105 px de alto (85 en el móvil) */
+.cruce-noel { top: 0; left: 100%; width: clamp(280px, 25vw, 340px); animation: cruce-noel 56s linear infinite; }
+.cruce-reyes { bottom: 3px; right: 100%; width: 483px; animation: cruce-reyes 56s linear infinite; }
+/* X: «centro en P vw» = calc(P vw − 100vw − 50%). Y en % de su alto (el dibujo ocupa del 16 % al 85 %): un arco suave
+   sobre la foto (baja y sube) y, al llegar al texto, se va por arriba */
+/* (calc(−A vw − 50%) deja su centro en (100 − A) vw.) Arco suave: baja un poco sobre la foto y, antes de llegar a
+   la columna del texto, sube a la franja de arriba (entre el borde de la portada y el rótulo) y sale por la izquierda.
+   El trineo entero queda siempre dentro de la portada (Y en px: el dibujo ocupa de ~19 a ~100 px de su caja) */
+@keyframes cruce-noel {
+  0%, 3.6% { transform: translate(0, 16px); }
+  8% { transform: translate(calc(-14vw - 50%), 28px); }
+  11% { transform: translate(calc(-30vw - 50%), 12px); }
+  13% { transform: translate(calc(-46vw - 50%), -6px); }
+  25%, 100% { transform: translate(calc(-100vw - 100%), -8px); }
+}
+@keyframes cruce-reyes {
+  0%, 53.6% { transform: translateX(0); }
+  78.6%, 100% { transform: translateX(calc(100vw + 100%)); }
+}
+.cruce-noel__dibujo { display: block; width: 100%; animation: vuelo 1.6s ease-in-out infinite alternate; }
+@keyframes vuelo { from { transform: translateY(-2px) rotate(-1deg); } to { transform: translateY(3px) rotate(1.5deg); } }
+/* Solo el trineo (sus formas pintadas) se puede tocar; lo demás no recibe toques */
+.cruce-noel .noel-toque { pointer-events: visiblePainted; cursor: pointer; }
+.reno__cuerpo { fill: #8a5a33; }
+.reno__cornamenta { fill: none; stroke: #6b4426; stroke-width: 2.2; stroke-linecap: round; }
+.reno__cola { fill: none; stroke: #8a5a33; stroke-width: 3; stroke-linecap: round; }
+.reno__patas, .camello__patas { fill: none; stroke-width: 3.2; stroke-linecap: round; }
+.reno__patas { stroke: #6b4426; }
+/* Paso de patas: dos posturas que se alternan (solo opacity) */
+.reno__patas--b, .camello__patas--b { opacity: 0; }
+.reno__patas--a, .reno__patas--b { animation: paso .36s steps(1) infinite; }
+.reno__patas--b { animation-delay: -.18s; }
+.camello__patas--a, .camello__patas--b { animation: paso .7s steps(1) infinite; }
+.camello__patas--b { animation-delay: -.35s; }
+@keyframes paso { 0% { opacity: 1; } 50% { opacity: 0; } }
+.riendas { fill: none; stroke: #e6c977; stroke-width: 1.5; }
+.noel__cara { fill: #f1c9a5; }
+.noel__gorro, .noel__cuerpo { fill: #c42032; }
+.noel__brazo { fill: none; stroke: #c42032; stroke-width: 5; stroke-linecap: round; }
+.noel__cinto { fill: #1a1414; }
+.noel__pompon, .noel__barba, .noel__ala { fill: #fff; }
+.saco { fill: #8b6b3d; }
+.regalo-saco--rojo { fill: #c42032; } .regalo-saco--verde { fill: #2e9b48; }
+.regalo-saco__lazo { fill: none; stroke: #e6c977; stroke-width: 2; }
+.trineo { fill: #b3172a; stroke: #e6c977; stroke-width: 2; }
+.trineo__patin { fill: none; stroke: #e6c977; stroke-width: 3; stroke-linecap: round; }
+.estela circle { fill: #ffe9a6; animation: centellear 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.estela circle:nth-child(2n) { animation-delay: -.6s; }
+/* Destellos que caen despacio y se desvanecen */
+.destello { fill: #fff3c4; transform-box: fill-box; animation: caer-destello 1.8s ease-in infinite; }
+.destello:nth-child(2) { animation-delay: -.6s; } .destello:nth-child(3) { animation-delay: -1.2s; }
+@keyframes caer-destello { from { transform: translateY(0); opacity: 1; } to { transform: translateY(26px); opacity: 0; } }
+/* Reyes Magos: cada uno distinto, con su cofre; la estrella guía delante */
+.cruce-reyes__dibujo { display: block; width: 100%; overflow: visible; }
+.rey { transform-box: fill-box; transform-origin: 50% 100%; animation: andar .7s ease-in-out infinite alternate; }
+.rey--2 { animation-delay: -.25s; } .rey--3 { animation-delay: -.5s; }
+@keyframes andar { from { transform: rotate(-2deg) translateY(0); } to { transform: rotate(2deg) translateY(-2px); } }
+.camello { fill: #a8723f; }
+.camello__patas { stroke: #8a5a33; }
+.camello__cola { fill: none; stroke: #8a5a33; stroke-width: 3; stroke-linecap: round; }
+.rey__manto--rojo, .rey__manta--rojo { fill: #c42032; }
+.rey__manto--verde, .rey__manta--verde { fill: #2e9b48; }
+.rey__manto--azul, .rey__manta--azul { fill: #1a6fb0; }
+.rey__manta { opacity: .9; }
+.rey__cara--clara { fill: #f1c9a5; }
+.rey__cara--oscura { fill: #6b4226; }
+.rey__barba--blanca { fill: #f4f2ef; }
+.rey__barba--rojiza, .rey__pelo--rojizo { fill: #b5532a; }
+.rey__barba--negra { fill: #2b1d14; }
+.rey__corona, .rey__cofre, .rey__cofre-tapa { fill: #e6c977; }
+.rey__cofre-tapa { fill: #c9a24f; }
+.estrella-guia__astro { fill: #ffe38a; filter: drop-shadow(0 0 5px rgb(255 227 138 / .9)); transform-box: fill-box; transform-origin: center; animation: centellear 2.4s ease-in-out infinite; }
+.estrella-guia__cola { fill: none; stroke: #ffe38a; stroke-width: 2; stroke-linecap: round; opacity: .55; }
+/* Regalo que cae al tocar el trineo (lo crea js/escaparate.js; --caida = distancia hasta la duna) */
+html.skin .deco .regalo-cae { display: block; }
+.regalo-cae { position: absolute; z-index: 4; width: 30px; height: 30px; margin: -15px 0 0 -15px; pointer-events: none;
+  animation: regalo-cae 1.6s cubic-bezier(.45, 0, .9, .5) forwards; }
+.regalo-cae svg { display: block; width: 100%; height: 100%; }
+@keyframes regalo-cae {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  60% { transform: translateY(var(--caida)) rotate(160deg); opacity: 1; }
+  72% { transform: translateY(calc(var(--caida) - 18px)) rotate(190deg); }
+  84% { transform: translateY(var(--caida)) rotate(200deg); opacity: 1; }
+  100% { transform: translateY(var(--caida)) rotate(200deg); opacity: 0; }
+}
+/* Móvil: la foto va debajo del texto; Papá Noel cruza por la guirnalda con un arco pequeño (por encima del rótulo) y
+   los Reyes por la duna, sobre el borde de abajo de la foto (la tarjeta del precio sube para dejarles sitio).
+   Horizonte simplificado (sin el segundo molino) */
+@media (max-width: 680px) {
+  html.skin.tema--navidad .portada { padding-bottom: 34px; }
+  html.skin.tema--navidad .portada__texto { padding-top: 68px; padding-bottom: 28px; }
+  html.skin.tema--navidad .deco-tira { height: 50px; }
+  html.skin.tema--navidad .oferta-destacada { bottom: 58px; }
+  .duna { height: 34px; }
+  .horizonte { bottom: 20px; height: 56px; }
+  .horizonte__extra { display: none; }
+  .cruce-noel { width: 250px; top: -8px; animation-name: cruce-noel-movil; }
+  .cruce-reyes { width: 386px; bottom: 2px; }
+}
+@keyframes cruce-noel-movil {
+  0%, 3.6% { transform: translate(0, 0); }
+  10% { transform: translate(calc(-35vw - 50%), -3%); }
+  17% { transform: translate(calc(-65vw - 50%), 0); }
+  25%, 100% { transform: translate(calc(-100vw - 100%), -3%); }
+}
+html.deco-quieta .deco-cruces *, html.deco-quieta .deco-reyes * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) { .deco-cruces .cruce, .deco-reyes .cruce, .regalo-cae { display: none !important; } }

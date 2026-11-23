@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261123-16';
+  var VERSION_FOTOS = '20261123-21';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -384,20 +384,78 @@
   // «Piel» de temporada: clases «skin tema--…» en <html>; estilos.css tiñe con ellas portada, barras,
   // botones, etiquetas y contacto. js/tema.js ya las pone antes de pintar (con la caché); aquí se
   // corrigen si lo del servidor dice otra cosa. Solo en la web (el panel no se tiñe)
-  // Las animaciones de la portada se paran cuando no se ve (clase «deco-quieta» en <html>)
+  // Las animaciones de la portada se paran cuando no se ve o la pestaña está oculta (clase «deco-quieta» en <html>)
   var vigilandoPortada = false;
   function vigilarPortada() {
     if (vigilandoPortada || !('IntersectionObserver' in window)) return;
     var portada = document.querySelector('.portada');
     if (!portada) return;
     vigilandoPortada = true;
-    new IntersectionObserver(function (e) {
-      document.documentElement.classList.toggle('deco-quieta', !e[0].isIntersecting);
-    }).observe(portada);
+    var fuera = false;
+    function quieta() { document.documentElement.classList.toggle('deco-quieta', fuera || document.hidden); }
+    new IntersectionObserver(function (e) { fuera = !e[0].isIntersecting; quieta(); }).observe(portada);
+    // Con la pestaña oculta, también quietas (los cruces de Navidad siguen donde iban al volver)
+    document.addEventListener('visibilitychange', quieta);
+  }
+  // Navidad: tocar el trineo de Papá Noel deja caer un regalo (cae girando, rebota en la duna y se va).
+  // Como mucho 3 a la vez. Es solo decoración: sin texto ni foco
+  var regalosCayendo = 0;
+  function soltarRegalo(e) {
+    var portada = document.querySelector('.portada');
+    var capa = document.querySelector('.deco-cruces');
+    if (!portada || !capa || regalosCayendo >= 3) return;
+    var caja = portada.getBoundingClientRect();
+    var x = e.clientX - caja.left;
+    var y = e.clientY - caja.top;
+    var duna = Math.min(caja.height - 22, caja.height - 30);
+    var r = document.createElement('div');
+    r.className = 'regalo-cae';
+    r.style.left = x + 'px';
+    r.style.top = y + 'px';
+    r.style.setProperty('--caida', Math.max(0, duna - y) + 'px');
+    var colores = [['#c42032', '#e6c977'], ['#2e9b48', '#fff'], ['#1a6fb0', '#e6c977']][regalosCayendo % 3];
+    var svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 30 30');
+    var caja1 = document.createElementNS(SVG, 'rect');
+    caja1.setAttribute('x', '4'); caja1.setAttribute('y', '10'); caja1.setAttribute('width', '22'); caja1.setAttribute('height', '18');
+    caja1.setAttribute('rx', '2'); caja1.setAttribute('fill', colores[0]);
+    var lazo = document.createElementNS(SVG, 'path');
+    lazo.setAttribute('d', 'M15 10v18M4 18h22M15 10q-6-8-9-3 2 3 9 3 7 0 9-3-3-5-9 3');
+    lazo.setAttribute('fill', 'none'); lazo.setAttribute('stroke', colores[1]); lazo.setAttribute('stroke-width', '2.5');
+    svg.appendChild(caja1);
+    svg.appendChild(lazo);
+    r.appendChild(svg);
+    regalosCayendo++;
+    // Se quita al acabar, si la animación se cancela (cambio de tema, display: none) o, por si acaso, a los 2,1 s
+    var hecho = false;
+    function quitar() {
+      if (hecho) return;
+      hecho = true;
+      r.remove();
+      regalosCayendo = Math.max(0, regalosCayendo - 1);
+    }
+    r.addEventListener('animationend', quitar);
+    r.addEventListener('animationcancel', quitar);
+    setTimeout(quitar, 1600 + 500);
+    capa.appendChild(r);
+  }
+  // Sin Navidad: fuera los regalos que quedaran
+  function limpiarRegalos() {
+    Array.prototype.forEach.call(document.querySelectorAll('.regalo-cae'), function (r) { r.remove(); });
+    regalosCayendo = 0;
+  }
+  var regaloListo = false;
+  function prepararRegalo() {
+    var noel = document.querySelector('.cruce-noel .noel-toque');
+    if (regaloListo || !noel) return;
+    regaloListo = true;
+    noel.addEventListener('click', soltarRegalo);
   }
   function aplicarPiel(t) {
     if (document.body && document.body.classList.contains('panel')) return;
     if (t) vigilarPortada();
+    if (t && t.tipo === 'navidad') prepararRegalo();
+    else limpiarRegalos();
     var h = document.documentElement;
     Array.prototype.slice.call(h.classList).forEach(function (c) { if (/^tema--/.test(c)) h.classList.remove(c); });
     h.classList.toggle('skin', !!t);
