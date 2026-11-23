@@ -1167,9 +1167,12 @@ html.skin.tema--navidad .portada__texto::before { animation: brillo-rotulo 3.5s 
 html.skin.tema--black-friday .portada__texto::before {
   background: linear-gradient(110deg, var(--amarillo) 40%, #fff6b0 50%, var(--amarillo) 60%) 200% 0 / 250% 100%;
   box-shadow: 0 0 14px rgb(255 212 0 / .6), 0 0 2px rgb(255 212 0);
-  animation: destello 4.5s ease-in-out infinite;
+  animation: destello 4.5s ease-in-out infinite, neon 7s steps(1) infinite;
 }
 @keyframes destello { 0%, 55% { background-position: 200% 0; } 100% { background-position: -50% 0; } }
+/* Neón: casi siempre encendido; de vez en cuando se apaga un instante (dos parpadeos lentos cada 7 s: muy por debajo
+   de 3 por segundo, sin riesgo para la epilepsia fotosensible) */
+@keyframes neon { 0%, 80% { opacity: 1; } 82% { opacity: .45; } 86% { opacity: 1; } 89% { opacity: .55; } 93%, 100% { opacity: 1; } }
 html.skin.tema--rebajas .portada__texto::before { animation: entrar-sello .7s cubic-bezier(.3, 1.6, .5, 1) both; transform-origin: left center; }
 html.skin.tema--rebajas .pastilla--oferta { animation: latido .9s ease-in-out 1s 2; }
 @keyframes latido { 50% { transform: scale(1.12); } }
@@ -1243,7 +1246,8 @@ html.skin.tema--navidad .oferta-destacada { bottom: 54px; }
 .horizonte__aspas { transform-box: fill-box; }
 /* Partículas (nevada en Navidad, «%» en Rebajas): lienzo a toda la portada, detrás del texto y de la tarjeta */
 .particulas { position: absolute; inset: 0; width: 100%; height: 100%; }
-html.skin.tema--navidad .deco .particulas, html.skin.tema--rebajas .deco .particulas, html.skin.tema--feria .deco .particulas { display: block; }
+html.skin.tema--navidad .deco .particulas, html.skin.tema--rebajas .deco .particulas, html.skin.tema--feria .deco .particulas,
+html.skin.tema--black-friday .deco .particulas { display: block; }
 
 .cruce { position: absolute; will-change: transform; }
 /* Papá Noel: 340 px a 1366 (trineo con renos ≈ 275 px), algo menos en tableta. Reyes ≈ 105 px de alto (85 en el móvil) */
@@ -1513,4 +1517,73 @@ html.skin.tema--feria .deco-noria .noria.deco-feria { display: block; }
      nunca a ella: 12 px de margen + 96 px de noria + 8 px + 16 px de hueco */
   .noria { right: 8px; bottom: 6px; width: 96px; } /* ≈ 107 px de alto */
   html.skin.tema--feria .oferta-destacada { max-width: calc(100% - 132px); }
+}
+
+/* ---------- Black Friday: carrito lleno de productos de la tienda que cruza la franja de abajo (capa z 1: encima de la foto,
+   debajo de la tarjeta del precio), lluvia de etiquetas en el lienzo (js/particulas.js) y rótulo de neón.
+   Ciclo de 28 s, todo en él: espera 2 s; entra acelerando con líneas de velocidad (7–22 %), frena en mitad de la
+   columna del texto, se balancea hacia delante y la carga bota (22–30 %); sale acelerando (30–45 %). Las ruedas giran
+   al compás (más deprisa cuanto más corre). El texto lleva margen abajo para que el carrito pase siempre por debajo del
+   botón. Solo transform y opacity; quieto con deco-quieta; con «reducir movimiento» no sale ---------- */
+.deco-carrito { position: absolute; inset: 0; z-index: 1; overflow: hidden; --parada: 26vw; }
+html.skin.tema--black-friday .portada { padding-bottom: 30px; }
+html.skin.tema--black-friday .portada__texto { padding-bottom: 124px; }
+.carrito-suelo { position: absolute; left: 0; right: 0; bottom: 13px; height: 2px; background: linear-gradient(90deg, transparent, rgb(255 212 0 / .35) 15%, rgb(255 212 0 / .35) 85%, transparent); }
+html.skin.tema--black-friday .deco .carrito-suelo { display: block; }
+.cruce-carrito { bottom: 8px; right: 100%; width: 160px; animation: cruce-carrito 28s infinite; }
+@keyframes cruce-carrito {
+  0%, 7% { transform: translateX(0); animation-timing-function: cubic-bezier(.45, 0, .25, 1); }
+  22%, 30% { transform: translateX(calc(var(--parada) + 50%)); animation-timing-function: cubic-bezier(.6, 0, .9, .6); }
+  45%, 100% { transform: translateX(calc(100vw + 100%)); }
+}
+.carrito { display: block; width: 100%; overflow: visible; }
+.carrito__velocidad path { fill: none; stroke: #ffd400; stroke-width: 3; stroke-linecap: round; }
+.carrito__velocidad { opacity: 0; animation: velocidad 28s linear infinite; }
+@keyframes velocidad { 0%, 7% { opacity: 0; } 10%, 18% { opacity: .75; } 21.5%, 31% { opacity: 0; } 34%, 44% { opacity: .75; } 45.5%, 100% { opacity: 0; } }
+.carrito__sombra { fill: rgb(0 0 0 / .45); }
+.carrito__cuerpo { transform-box: view-box; transform-origin: 200px 160px; animation: balanceo-carrito 28s linear infinite; }
+@keyframes balanceo-carrito {
+  0%, 21.6% { transform: none; } 22.6% { transform: rotate(4deg); } 23.8% { transform: rotate(-1.5deg); } 25% { transform: none; }
+  30% { transform: none; } 31% { transform: rotate(-2deg); } 32.5%, 100% { transform: none; }
+}
+.carrito__carga { animation: carga-bota 28s linear infinite; }
+@keyframes carga-bota { 0%, 22% { transform: none; } 23% { transform: translateY(-7px); } 24.2% { transform: none; } 25% { transform: translateY(-2.5px); } 25.8%, 100% { transform: none; } }
+.carrito__fondo { fill: rgb(255 212 0 / .12); stroke: #c9a700; stroke-width: 1.5; }
+.carrito__cara { fill: rgb(17 17 17 / .45); }
+.carrito__rejilla { fill: none; stroke: #ffd400; stroke-width: 1.6; }
+.carrito__borde { fill: none; stroke: #ffd400; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.carrito__chasis { fill: none; stroke: #ffd400; stroke-width: 4; stroke-linecap: round; }
+.carrito__mango { stroke: #111; stroke-width: 9; stroke-linecap: round; }
+.carrito__mango-franja { stroke: #ffd400; stroke-width: 3; stroke-linecap: round; }
+.carrito__giro circle { fill: #111; stroke: #ffd400; stroke-width: 2.5; }
+.carrito__giro path { fill: none; stroke: #ffd400; stroke-width: 1.4; }
+.carrito__giro--atras circle { stroke: #c9a700; }
+.carrito__buje { fill: #ffd400; }
+.carrito__giro { animation: rueda-cruce 28s infinite; }
+@keyframes rueda-cruce {
+  0%, 7% { transform: rotate(0); animation-timing-function: cubic-bezier(.45, 0, .25, 1); }
+  22%, 30% { transform: rotate(2520deg); animation-timing-function: cubic-bezier(.6, 0, .9, .6); }
+  45%, 100% { transform: rotate(5400deg); }
+}
+.carga__colchon rect { fill: #f4f2ef; stroke: #1a6fb0; stroke-width: 2; }
+.carga__colchon path { fill: none; stroke: #1a6fb0; stroke-width: 1.5; opacity: .6; }
+.carga__colchon ellipse { fill: #e6eef6; stroke: #1a6fb0; stroke-width: 1.5; }
+.carga__bolsa rect { fill: #ffd400; stroke: #111; stroke-width: 2; }
+.carga__asa { fill: none; stroke: #ffd400; stroke-width: 2.5; }
+.carga__bolsa text { fill: #111; font: 900 15px var(--letra-titulo); text-anchor: middle; }
+.carga__almohada { fill: #fff; stroke: #9aa1ab; stroke-width: 1.5; }
+.carga__cojin { fill: #c42032; stroke: #7d1220; stroke-width: 1.5; }
+.carga__sillon rect { fill: #2e7d6b; stroke: #1d4f44; stroke-width: 1.5; }
+@media (max-width: 680px) {
+  .deco-carrito { --parada: 50vw; }
+  html.skin.tema--black-friday .portada { padding-bottom: 0; }
+  html.skin.tema--black-friday .portada__texto { padding-bottom: 28px; }
+  html.skin.tema--black-friday .oferta-destacada { bottom: 88px; }
+  .cruce-carrito { width: 104px; bottom: 6px; }
+  .carrito-suelo { bottom: 9px; }
+}
+html.deco-quieta .deco-carrito * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .deco-carrito .cruce { display: none !important; }
+  html.skin.tema--black-friday .portada__texto::before { animation: none !important; }
 }
