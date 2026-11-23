@@ -1146,7 +1146,7 @@ html.skin.tema--feria .copo:nth-child(3n+2) { background: rgb(46 155 72 / .5); }
 .etiqueta__hilo { stroke: #ffd400; stroke-width: 2; }
 .etiqueta__cuerpo { fill: #ffd400; stroke: #111; stroke-width: 2; }
 .etiqueta__agujero { fill: #111; }
-.etiqueta__texto { fill: #111; font: 900 22px var(--letra-titulo); text-anchor: middle; }
+.etiqueta__texto { fill: #111; font: 900 17px var(--letra-titulo); letter-spacing: -.02em; text-anchor: middle; } /* deja aire a los lados de la etiqueta (60 de ancho) */
 /* Rebajas: sellos girados que entran con un rebote */
 .sello { animation: entrar-sello .7s cubic-bezier(.3, 1.6, .5, 1) both; }
 .sello--1 { top: 110px !important; right: 8%; width: 116px; rotate: -14deg; animation-delay: .25s; }
@@ -1215,7 +1215,7 @@ html.skin .producto--temporada .producto__foto::after {
 }
 
 /* Fuera de la vista: quietas */
-html.deco-quieta .deco *, html.deco-quieta .portada__texto::before { animation-play-state: paused !important; }
+html.deco-quieta .deco *, html.deco-quieta .portada__texto::before, html.deco-quieta .banda-temporada__pista { animation-play-state: paused !important; }
 /* «Reducir movimiento» (preferencia del sistema): todo quieto; ni nieve ni confeti */
 @media (prefers-reduced-motion: reduce) {
   .deco *, html.skin .portada__texto::before, html.skin .pastilla--oferta, .banda-temporada__pista { animation: none !important; }
