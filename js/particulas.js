@@ -2,7 +2,8 @@
 // formas; el motor (tamaño, ritmo, pausas) es el mismo:
 // - Navidad: nevada en tres capas (al fondo, copos pequeños, lentos y algo difuminados; en medio, medianos;
 //   delante, pocos cristales de 6 puntas que giran despacio y a veces destellan) y, arriba, estrellitas que titilan.
-// - Rebajas: lluvia suave de «%» y etiquetas pequeñas (blanco, amarillo y rojo oscuro) con vaivén y giro.
+// - Rebajas: lluvia suave de «%» y etiquetas pequeñas (blanco, amarillo y rojo oscuro) con vaivén y giro; y, cuando las
+//   tijeras terminan de cortar el cupón, una ráfaga de confeti rojo y blanco donde acaba el corte.
 // - Feria: confeti (rectángulos y tiras de colores que caen girando) y fuegos artificiales en la parte alta: un cohete
 //   sube con su estela y estalla en una palmera de chispas que caen con gravedad y se apagan (2-3 a la vez como mucho).
 // - Black Friday: lluvia de etiquetas de precio amarillas y negras, sin cifras (vacías, «%», «BF» u «OFERTA»), girando.
@@ -103,6 +104,53 @@
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath(); ctx.arc(0, -h / 2 + w * .5, w * .14, 0, 6.3); ctx.fill();
     ctx.restore();
+  }
+
+  // ---------- Rebajas: ráfaga de confeti al terminar el corte del cupón ----------
+  // El corte termina al 44 % de la animación «cupon-pista» (28 s, css/estilos.css): se mira su tiempo en cada fotograma
+  var animCorte = null, tiempoAntes = 0, rafaga = [];
+  function corteTerminado() {
+    if (!animCorte || animCorte.playState === 'idle') {
+      var pista = document.querySelector('.cupon__pista');
+      animCorte = pista && pista.getAnimations ? pista.getAnimations()[0] || null : null;
+      if (!animCorte) return false;
+    }
+    var t = (animCorte.currentTime || 0) % 28000, fin = 28000 * .44;
+    var cruza = tiempoAntes < fin && t >= fin;
+    tiempoAntes = t;
+    return cruza;
+  }
+  function soltarRafaga() {
+    // Donde acaba la línea del cupón (su último trozo visible), en coordenadas del lienzo
+    var trozos = document.querySelectorAll('.cupon__trozo');
+    var ultimo = null;
+    Array.prototype.forEach.call(trozos, function (t) { if (t.offsetWidth) ultimo = t; });
+    if (!ultimo) return;
+    var r = ultimo.getBoundingClientRect(), c = lienzo.getBoundingClientRect();
+    var x = Math.min(r.left - c.left, ancho - 20), y = r.top - c.top;
+    var n = modesto ? 8 : pequeno ? 14 : 30;
+    for (var i = 0; i < n; i++) {
+      var ang = azar(-3.1, 0), v = azar(90, 220);
+      rafaga.push({ x: x, y: y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, giro: azar(0, 6.3), vgiro: azar(-8, 8), vida: azar(1.2, 1.8), edad: 0,
+        w: azar(6, 10), h: azar(10, 16), color: Math.random() < .5 ? '196,32,50' : '255,255,255' });
+    }
+  }
+  function rebajasExtra(dt) {
+    if (corteTerminado()) soltarRafaga();
+    rafaga = rafaga.filter(function (p) {
+      p.edad += dt;
+      if (p.edad >= p.vida) return false;
+      p.vy += 260 * dt; p.vx *= 1 - .8 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.giro += p.vgiro * dt;
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.giro);
+      ctx.fillStyle = 'rgba(' + p.color + ',' + (1 - p.edad / p.vida).toFixed(2) + ')';
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.strokeStyle = 'rgba(125,18,32,' + (.6 * (1 - p.edad / p.vida)).toFixed(2) + ')'; ctx.lineWidth = .8;
+      ctx.strokeRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+      return true;
+    });
   }
 
   // ---------- Feria: confeti y fuegos artificiales ----------
@@ -262,7 +310,8 @@
       escritorio: 40, movil: 8, modesto: 6, reparto: [.45, .3], margen: 2,
       nueva: nuevaRebaja,
       pintar: function (p, x) { if (p.capa === 2) etiqueta(p, x); else porcentaje(p, x); },
-      estrellas: false
+      estrellas: false,
+      extra: rebajasExtra
     },
     'black-friday': {
       escritorio: 34, movil: 8, modesto: 6, reparto: [.45, .35], margen: 2,
@@ -287,7 +336,7 @@
     dpr = Math.min(2, window.devicePixelRatio || 1);
     lienzo.width = Math.round(ancho * dpr); lienzo.height = Math.round(alto * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    piezas = []; estrellas = []; cohetes = []; chispas = []; destellos = []; esperaCohete = 2;
+    piezas = []; estrellas = []; cohetes = []; chispas = []; destellos = []; rafaga = []; animCorte = null; esperaCohete = 2;
     if (!T) return;
     // Densidad: menos en pantallas pequeñas y aún menos en equipos modestos
     pequeno = ancho <= 680;
