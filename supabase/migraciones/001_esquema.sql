@@ -6,7 +6,8 @@ begin;  -- todo o nada: si algo falla, no queda nada a medias
 -- Qué crea:
 --   · esquema privado «privado» (no se publica en la API) con las funciones de apoyo;
 --   · tablas public.productos, public.ajustes (una sola fila) y public.editores;
---   · restricciones (CHECK) que copian las reglas de js/contenido.js (versión 3 del contenido);
+--   · restricciones (CHECK) que copian las reglas de js/contenido.js (versión 3 del contenido), ya con lo
+--     de las migraciones 005 (enlace de opiniones), 007 (accesorios y otros) y 008 (temporada y anuncio);
 --   · disparadores: sellado de fechas (actualizado_en), límite de 200 productos, referencia
 --     inmutable y «si se vende o se borra el producto de la portada, la portada se queda sin destacado»;
 --   · RLS y permisos mínimos para anon / authenticated;
@@ -183,6 +184,53 @@ as $$
     false)
 $$;
 
+-- Fecha «AAAA-MM-DD» que existe (no «2026-02-30»).
+create or replace function privado.es_fecha(t text)
+returns boolean
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  if t is null or t !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+    return false;
+  end if;
+  return to_char(t::date, 'YYYY-MM-DD') = t;
+exception when others then
+  return false;
+end
+$$;
+
+-- Enlace del botón del anuncio: una publicación de Instagram, Facebook o TikTok, o WhatsApp.
+-- Dominio ANCLADO (igual que js/contenido.js), https, sin espacios, comillas ni caracteres raros.
+create or replace function privado.es_enlace_anuncio(t text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    char_length(t) <= 500
+    and t !~ '[\x01-\x20\x7f<>"''\\`]'
+    and t ~ '^https://((www|m)\.)?(instagram|facebook)\.com(/|$)|^https://((www|m|vm|vt)\.)?tiktok\.com(/|$)|^https://wa\.me/',
+    false)
+$$;
+
+-- Enlace a las bases legales: los mismos del anuncio o la web de las bases (eduardolar.github.io).
+create or replace function privado.es_enlace_bases(t text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    privado.es_enlace_anuncio(t)
+    or (char_length(t) <= 500
+        and t !~ '[\x01-\x20\x7f<>"''\\`]'
+        and t ~ '^https://eduardolar\.github\.io/'),
+    false)
+$$;
+
 -- Revisa ajustes.datos. Devuelve NULL si vale o el motivo (en español) si no.
 -- No replica toda la normalización: tipos, largos principales, WhatsApp, rutas y tamaños.
 -- Lo que depende de la fecha (desde <= año actual) y de otras tablas (destacado) lo revisa
@@ -210,7 +258,7 @@ begin
     return 'datos ocupa más de 32 KB';
   end if;
   for clave in select jsonb_object_keys(d) loop
-    if clave not in ('tienda', 'portada', 'opiniones', 'financiacion', 'marcas', 'desde', 'version') then
+    if clave not in ('tienda', 'portada', 'opiniones', 'financiacion', 'marcas', 'desde', 'version', 'temporada', 'anuncio') then
       return format('clave desconocida en datos: %s', clave);
     end if;
   end loop;
@@ -338,6 +386,82 @@ begin
     return 'desde: año de 4 cifras o vacío';
   end if;
 
+  -- temporada (desde la 008, opcional): { tipo, texto (0-60), hasta ('' o AAAA-MM-DD) }
+  if d ? 'temporada' then
+    x := d -> 'temporada';
+    if jsonb_typeof(x) is distinct from 'object' then
+      return 'temporada: { tipo, texto, hasta }';
+    end if;
+    for clave in select jsonb_object_keys(x) loop
+      if clave not in ('tipo', 'texto', 'hasta') then
+        return format('clave desconocida en temporada: %s', clave);
+      end if;
+    end loop;
+    if jsonb_typeof(x -> 'tipo') is distinct from 'string'
+       or (x ->> 'tipo') not in ('ninguna', 'navidad', 'black-friday', 'rebajas', 'feria') then
+      return 'temporada.tipo: ninguna, navidad, black-friday, rebajas o feria';
+    end if;
+    if not privado.json_linea(x -> 'texto', 0, 60) then
+      return 'temporada.texto: hasta 60 caracteres, en una línea';
+    end if;
+    if jsonb_typeof(x -> 'hasta') is distinct from 'string'
+       or ((x ->> 'hasta') <> '' and not privado.es_fecha(x ->> 'hasta')) then
+      return 'temporada.hasta: fecha AAAA-MM-DD o vacío';
+    end if;
+  end if;
+
+  -- anuncio (desde la 008, opcional): sorteos, eventos…
+  if d ? 'anuncio' then
+    x := d -> 'anuncio';
+    if jsonb_typeof(x) is distinct from 'object' then
+      return 'anuncio: objeto';
+    end if;
+    for clave in select jsonb_object_keys(x) loop
+      if clave not in ('activo', 'tipo', 'titulo', 'texto', 'foto', 'boton', 'hasta', 'bases') then
+        return format('clave desconocida en anuncio: %s', clave);
+      end if;
+    end loop;
+    if jsonb_typeof(x -> 'activo') is distinct from 'boolean' then
+      return 'anuncio.activo: true/false';
+    end if;
+    if jsonb_typeof(x -> 'tipo') is distinct from 'string' or (x ->> 'tipo') not in ('sorteo', 'evento', 'anuncio') then
+      return 'anuncio.tipo: sorteo, evento o anuncio';
+    end if;
+    if not privado.json_linea(x -> 'titulo', case when (x -> 'activo') = 'true'::jsonb then 1 else 0 end, 60) then
+      return 'anuncio.titulo: de 1 a 60 caracteres (sin título no se puede encender), en una línea';
+    end if;
+    if not privado.json_linea(x -> 'texto', 0, 220) then
+      return 'anuncio.texto: hasta 220 caracteres, en una línea';
+    end if;
+    if jsonb_typeof(x -> 'foto') is distinct from 'string'
+       or ((x ->> 'foto') <> '' and not privado.es_foto_portada(x ->> 'foto')) then
+      return 'anuncio.foto: vacía, ruta img/... o portada/{uuid}.jpg del bucket';
+    end if;
+    if jsonb_typeof(x -> 'boton') is distinct from 'object' then
+      return 'anuncio.boton: { texto, enlace }';
+    end if;
+    for clave in select jsonb_object_keys(x -> 'boton') loop
+      if clave not in ('texto', 'enlace') then
+        return format('clave desconocida en anuncio.boton: %s', clave);
+      end if;
+    end loop;
+    if not privado.json_linea(x -> 'boton' -> 'texto', 0, 30) then
+      return 'anuncio.boton.texto: hasta 30 caracteres, en una línea';
+    end if;
+    if jsonb_typeof(x -> 'boton' -> 'enlace') is distinct from 'string'
+       or ((x #>> '{boton,enlace}') <> '' and not privado.es_enlace_anuncio(x #>> '{boton,enlace}')) then
+      return 'anuncio.boton.enlace: vacío o https de Instagram, Facebook, TikTok o WhatsApp (wa.me)';
+    end if;
+    if jsonb_typeof(x -> 'hasta') is distinct from 'string'
+       or ((x ->> 'hasta') <> '' and not privado.es_fecha(x ->> 'hasta')) then
+      return 'anuncio.hasta: fecha AAAA-MM-DD o vacío';
+    end if;
+    if jsonb_typeof(x -> 'bases') is distinct from 'string'
+       or ((x ->> 'bases') <> '' and not privado.es_enlace_bases(x ->> 'bases')) then
+      return 'anuncio.bases: vacío o https de Instagram, Facebook, TikTok, WhatsApp o eduardolar.github.io';
+    end if;
+  end if;
+
   return null;
 end
 $$;
@@ -363,13 +487,14 @@ create table if not exists public.productos (
   a_medida          boolean not null default false,
   plazo             text not null default '',
   destacado         boolean not null default false,       -- sale primero en la lista
+  en_temporada      boolean not null default false,       -- sale también en la sección de la temporada
   orden             integer not null default 0,           -- orden de la lista (ascendente)
   creado_en         timestamptz not null default now(),
   actualizado_en    timestamptz not null default now(),   -- lo pone el disparador; sirve de «If-Match»
 
   constraint productos_ref_formato       check (ref ~ '^[A-Z]{3}-[0-9]{2,4}$'),
   constraint productos_nombre            check (char_length(nombre) >= 1 and privado.es_linea(nombre, 60)),
-  constraint productos_categoria         check (categoria in ('sofas', 'sillones', 'colchones', 'camas')),
+  constraint productos_categoria         check (categoria in ('sofas', 'sillones', 'colchones', 'camas', 'accesorios', 'otros')),
   constraint productos_precio            check (precio is null or (precio > 0 and precio <= 1000000)),
   constraint productos_precio_antes      check (precio_antes is null
                                                 or (precio is not null and precio_antes > precio and precio_antes <= 1000000)),
@@ -409,7 +534,7 @@ create table if not exists public.ajustes (
 );
 
 comment on table public.ajustes is
-  'Ajustes de la web (una sola fila, id = 1): tienda, portada, opiniones, financiación, marcas y desde.';
+  'Ajustes de la web (una sola fila, id = 1): tienda, portada, opiniones, financiación, marcas, desde, temporada y anuncio.';
 comment on column public.ajustes.datos is
   'JSON como el de js/contenido.js sin «productos». portada.destacado = ref de un producto no vendido o ''''.';
 
@@ -603,6 +728,9 @@ grant execute on function
   privado.es_foto_portada(text),
   privado.fotos_validas(text[], text),
   privado.json_linea(jsonb, integer, integer),
+  privado.es_fecha(text),
+  privado.es_enlace_anuncio(text),
+  privado.es_enlace_bases(text),
   privado.ajustes_problema(jsonb),
   privado.es_editor()
 to authenticated, service_role;

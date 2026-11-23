@@ -10,6 +10,8 @@ supabase/
   migraciones/004_alta_editor.sql    plantilla para dar de alta a quien edita (pon el UID en el SQL Editor)
   migraciones/005_enlace_opiniones.sql  el enlace de opiniones, solo de Google Maps (dominio anclado)
   migraciones/006_opiniones_iniciales.sql  autores de las opiniones con la inicial del apellido
+  migraciones/007_categorias_accesorios_otros.sql  categorías «Accesorios» (ACC-01…) y «Otros» (OTR-01…)
+  migraciones/008_temporada.sql      temporada (banda y sección), anuncio (sorteos, eventos) y productos.en_temporada
   deshacer/001_deshacer_esquema.sql  vuelta atrás de 001 (borra todo)
   deshacer/002_deshacer_datos_ejemplo.sql  vuelta atrás de 002 (solo antes de usar la web)
 ```
@@ -105,14 +107,18 @@ Si alguna vez se filtra la clave secreta: *API Keys* → rotarla/revocarla en el
 
 - **`productos`**: una fila por producto (`ref` tipo `SOF-01`, no se puede cambiar). Las reglas de
   `js/contenido.js` están como restricciones: largos máximos (nombre 60, descripción 140, larga 1000,
-  medidas 120, colores 160, plazo 60), categorías, etiquetas, estados y firmezas válidas, precio > 0
+  medidas 120, colores 160, plazo 60), categorías (sofás, sillones, colchones, camas, accesorios y
+  otros; las dos últimas llegan con la 007), etiquetas, estados y firmezas válidas, precio > 0
   o vacío («Consultar»), precio anterior solo si es mayor que el precio, de 0 a 4 fotos sin
   repetir, y como mucho 200 productos. Textos de una línea sin espacios dobles ni en los bordes,
   como los deja la web. El público no ve los vendidos; los editores, sí.
 - **`ajustes`**: una sola fila (`id = 1`) con un JSON `datos`: `tienda`, `portada`, `opiniones`,
-  `financiacion`, `marcas` y `desde` (lo mismo que en `contenido.js`, sin `productos`). Se revisan
-  tipos, largos principales, el WhatsApp (`34` + 9 cifras), las rutas de fotos, tamaños de listas y
-  32 KB como máximo.
+  `financiacion`, `marcas`, `desde` y, desde la 008, `temporada` y `anuncio` (lo mismo que en `contenido.js`, sin
+  `productos`). Se revisan tipos, largos principales, el WhatsApp (`34` + 9 cifras), las rutas de fotos, tamaños de
+  listas y 32 KB como máximo. En el anuncio, los enlaces solo de Instagram, Facebook, TikTok o wa.me (las bases,
+  también eduardolar.github.io), con el dominio anclado, y las fechas «hasta» que existan (AAAA-MM-DD); que hayan
+  pasado no se revisa: la web deja de enseñarlos sola. La foto del anuncio va en `portada/` del bucket (no hace
+  falta tocar las políticas de Storage). Los productos tienen `en_temporada` (desde la 008).
 - **`editores`**: quién puede editar. Cada editor solo puede leer su propia fila (así el panel sabe
   si es editor); nadie la cambia desde la web.
 - **Portada sin producto fantasma**: si se vende o se borra el producto destacado en la portada, la
