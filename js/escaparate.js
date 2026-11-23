@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261123-21';
+  var VERSION_FOTOS = '20261123-24';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -708,11 +708,21 @@
       caja.appendChild(sello);
     }
     if (p.estado === 'reservado') caja.appendChild(el('span', 'oferta-destacada__estado', 'Reservado'));
-    var precio = el('span', 'etiqueta-precio' + (p.precio === null ? ' etiqueta-precio--consultar' : ''));
+    var rebaja = p.precio !== null && p.precioAntes !== null;
+    var precio = el('span', 'etiqueta-precio' + (p.precio === null ? ' etiqueta-precio--consultar' : '') + (rebaja ? ' etiqueta-precio--rebaja' : ''));
     if (p.precio === null) {
       precio.textContent = 'Consultar';
     } else {
+      // Con precio de antes: «Antes 399 €» tachado y «Ahora 299 €» (en Rebajas, la raya se dibuja y el precio cae; CSS)
+      if (rebaja) {
+        var antes = el('del', 'producto__antes');
+        antes.appendChild(el('span', 'visualmente-oculto', 'Antes '));
+        antes.appendChild(document.createTextNode(C.formatearPrecio(p.precioAntes)));
+        precio.appendChild(antes);
+        precio.appendChild(document.createTextNode(' ')); // que se lea «399 € Ahora», no «€Ahora»
+      }
       var fuerte = el('strong');
+      if (rebaja) fuerte.appendChild(el('span', 'visualmente-oculto', 'Ahora '));
       importe(fuerte, C.formatearPrecio(p.precio));
       precio.appendChild(fuerte);
     }
