@@ -110,7 +110,7 @@ colchón de 299 €, para que la foto y el precio sean del mismo producto).
 leyendo la caché antes de pintar, para que no parpadee; `js/escaparate.js` la corrige con lo del servidor.
 
 Al cambiar CSS o JS, sube el `?v=` de todos los enlaces y las constantes de versión de `js/admin.js` y
-`js/escaparate.js` (ahora `20261123-15`).
+`js/escaparate.js` (ahora `20261123-16`).
 
 Opiniones de Google: se publican con el nombre y la inicial del apellido («Brian L.»).
 
