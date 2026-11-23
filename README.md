@@ -35,7 +35,7 @@ extremos, «1–3 de 7» debajo y, para lectores de pantalla, «7 productos»; s
 movimiento», sin animación; al cambiar de filtro vuelve al principio; con el teclado, la tarjeta enfocada se
 pone a la vista; toda la tarjeta abre la ficha, con «›» junto al nombre, pero un arrastre no la abre. Debajo,
 la franja para mayores y familias), **banda «Un colchón online no se prueba. Este sí.»** (titular en una línea y los 4
-pasos en una fila: número, pictograma y texto), **opiniones de Google** (y las marcas, si las hay), **Visítanos** y el **pie** con redes.
+pasos en una fila: número, pictograma y texto), **opiniones de Google** (y las marcas, si las hay), y el **pie** con el contacto, el horario y las redes (el menú «Visítanos» lleva a él).
 Lo que el panel deja vacío no se enseña. Textos mínimos: sin antetítulos ni frases que
 repitan el título. En las tarjetas y en la ficha solo hay dos acciones: «Reservar» (o «Avisadme si queda
 libre») y «Preguntar».
