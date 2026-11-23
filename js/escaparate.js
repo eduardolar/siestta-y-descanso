@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261122-19';
+  var VERSION_FOTOS = '20261123-2';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -48,7 +48,24 @@
   }
 
   function srcFoto(foto) {
-    return foto.indexOf('data:') === 0 ? foto : foto + '?v=' + VERSION_FOTOS;
+    return C.urlFoto(foto, VERSION_FOTOS);
+  }
+
+  // Si una foto no carga (p. ej. se borró del bucket), en su lugar se pone otra cosa: en vez de un
+  // icono de imagen rota, el marcador de «sin foto» (o lo que diga enLugar)
+  function siFalla(img, enLugar) {
+    img.addEventListener('error', function () {
+      if (img.dataset.fallo) return;
+      img.dataset.fallo = '1';
+      enLugar(img);
+    });
+  }
+  function marcadorEnLugar(categoria, clase) {
+    return function (img) {
+      var m = el('div', clase || 'producto__marcador');
+      m.appendChild(icono(categoria));
+      if (img.parentNode) img.parentNode.replaceChild(m, img);
+    };
   }
 
   function textoPrecio(p) {
@@ -82,6 +99,7 @@
       img.decoding = 'async';
       img.width = 400;
       img.height = 500;
+      siFalla(img, marcadorEnLugar(p.categoria));
       caja.appendChild(img);
     } else {
       var marcador = el('div', 'producto__marcador');
@@ -197,58 +215,111 @@
   var NOMBRE_FILTRO = { todo: 'productos', sofas: 'sofás', sillones: 'sillones', colchones: 'colchones', camas: 'camas', ofertas: 'ofertas' };
 
   var filtroActual = 'todo';
-  var todosALaVista = false;   // tras pulsar «Ver los N productos»
-  // Productos a la vista antes de «Ver los N»: una fila de 3 en escritorio y tableta, 2×2 en el móvil
-  function limite() {
-    return window.matchMedia && window.matchMedia('(min-width: 681px)').matches ? 3 : 4;
+
+  function movimiento() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
   }
 
-  // Tarjeta-llamada para mayores y familias, dentro de la rejilla
-  function crearLlamada(tienda) {
-    var li = el('li', 'llamada');
-    li.appendChild(el('p', 'cartel llamada__titulo', '¿Buscas algo para tus padres?'));
-    li.appendChild(el('p', 'llamada__texto', 'Sillones relax, geriátricos y camas articuladas.'));
-    var a = el('a', 'boton boton--wa llamada__boton');
-    a.href = C.enlaceWhatsApp(tienda.whatsapp, 'Hola, busco un sillón o una cama para mis padres. ¿Podemos ir a probarlos?');
-    nuevaPestana(a);
-    a.appendChild(iconoWa());
-    a.appendChild(document.createTextNode('Pregúntanos'));
-    li.appendChild(a);
-    return li;
+  // ---------- Carrusel «Ahora en tienda»: una fila deslizable con todos los del filtro ----------
+
+  // Flechas (solo escritorio: el CSS las esconde en pantallas pequeñas) y la posición «1–3 de 7»
+  function actualizarCarrusel() {
+    var lista = document.getElementById('productos');
+    if (!lista) return;
+    var tarjetas = lista.querySelectorAll('.producto');
+    var ant = document.getElementById('carrusel-ant');
+    var sig = document.getElementById('carrusel-sig');
+    var pos = document.getElementById('carrusel-posicion');
+    var max = lista.scrollWidth - lista.clientWidth;
+    if (ant) ant.hidden = lista.scrollLeft <= 2;
+    if (sig) sig.hidden = lista.scrollLeft >= max - 2;
+    if (!pos) return;
+    if (!tarjetas.length || max <= 2) { pos.textContent = ''; return; }
+    // Las que se ven enteras (o casi)
+    var caja = lista.getBoundingClientRect();
+    var primera = 0;
+    var ultima = 0;
+    Array.prototype.forEach.call(tarjetas, function (li, i) {
+      var r = li.getBoundingClientRect();
+      var visible = Math.min(r.right, caja.right) - Math.max(r.left, caja.left);
+      if (visible >= r.width * 0.6) {
+        if (!primera) primera = i + 1;
+        ultima = i + 1;
+      }
+    });
+    if (!primera) { primera = 1; ultima = 1; }
+    pos.textContent = (primera === ultima ? primera : primera + '–' + ultima) + ' de ' + tarjetas.length;
   }
 
-  function pintarEscaparate(contenido, enfocarDesde) {
+  // Avanza o retrocede casi una pantalla de tarjetas
+  function moverCarrusel(sentido) {
+    var lista = document.getElementById('productos');
+    if (!lista) return;
+    var primera = lista.querySelector('.producto');
+    var paso = primera ? primera.getBoundingClientRect().width : lista.clientWidth;
+    var cuantas = Math.max(1, Math.floor((lista.clientWidth + 8) / (paso + 8)));
+    lista.scrollBy({ left: sentido * cuantas * (paso + parseFloat(getComputedStyle(lista).columnGap || 0)), behavior: movimiento() });
+  }
+
+  function iniciarCarrusel() {
+    var lista = document.getElementById('productos');
+    var carrusel = document.getElementById('carrusel');
+    if (!lista || !carrusel) return;
+    var pendiente = false;
+    lista.addEventListener('scroll', function () {
+      if (pendiente) return;
+      pendiente = true;
+      window.requestAnimationFrame(function () { pendiente = false; actualizarCarrusel(); });
+    }, { passive: true });
+    window.addEventListener('resize', actualizarCarrusel);
+    var ant = document.getElementById('carrusel-ant');
+    var sig = document.getElementById('carrusel-sig');
+    if (ant) ant.addEventListener('click', function () { moverCarrusel(-1); });
+    if (sig) sig.addEventListener('click', function () { moverCarrusel(1); });
+    // Teclado: la tarjeta que recibe el foco se pone a la vista
+    lista.addEventListener('focusin', function (e) {
+      var li = e.target.closest('.producto');
+      if (li) li.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: movimiento() });
+    });
+    // Un arrastre (dedo o ratón) que desplaza el carrusel NO abre la ficha: solo un toque sin moverse
+    var inicio = null;
+    lista.addEventListener('pointerdown', function (e) {
+      inicio = { x: e.clientX, y: e.clientY, scroll: lista.scrollLeft };
+    }, { passive: true });
+    carrusel.addEventListener('click', function (e) {
+      if (!inicio || !lista.contains(e.target)) return;
+      var movido = Math.abs(e.clientX - inicio.x) > 10 || Math.abs(lista.scrollLeft - inicio.scroll) > 10;
+      inicio = null;
+      if (movido) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+  }
+
+  // volverAlPrincipio: al cambiar de filtro, el carrusel empieza otra vez por el primero
+  function pintarEscaparate(contenido, volverAlPrincipio) {
     var lista = document.getElementById('productos');
     var filtros = document.getElementById('filtros');
     var vacio = document.getElementById('escaparate-vacio');
     var cuenta = document.getElementById('escaparate-cuenta');
-    var mas = document.getElementById('ver-todos');
+    var carrusel = document.getElementById('carrusel');
     if (!lista) return;
 
     var todos = visibles(contenido);
     var elegidos = todos.filter(FILTROS[filtroActual] || FILTROS.todo);
-    var tope = limite();
-    var mostrados = todosALaVista ? elegidos : elegidos.slice(0, tope);
+
+    // Si el foco estaba en una tarjeta, se devuelve a la misma tras repintar
+    var activo = document.activeElement;
+    var conFoco = activo && lista.contains(activo) ? activo.closest('.producto') : null;
+    var idFoco = conFoco ? conFoco.dataset.id : null;
 
     lista.textContent = '';
-    mostrados.forEach(function (p, i) {
-      lista.appendChild(crearTarjeta(p, contenido.tienda));
-      // La franja para mayores va tras la primera tanda (o al final si hay menos), solo en «Todo»
-      if (filtroActual === 'todo' && (i === tope - 1 || (i === mostrados.length - 1 && i < tope - 1))) {
-        lista.appendChild(crearLlamada(contenido.tienda));
-      }
-    });
-
-    if (mas) {
-      var quedan = elegidos.length > mostrados.length;
-      mas.hidden = !quedan;
-      if (quedan) mas.textContent = 'Ver los ' + elegidos.length + ' productos';
+    elegidos.forEach(function (p) { lista.appendChild(crearTarjeta(p, contenido.tienda)); });
+    if (carrusel) carrusel.hidden = !elegidos.length;
+    if (volverAlPrincipio) lista.scrollTo({ left: 0, behavior: 'auto' });
+    if (idFoco) {
+      var otra = lista.querySelector('.producto[data-id="' + idFoco + '"] .producto__enlace');
+      if (otra) otra.focus({ preventScroll: true });
     }
-    if (enfocarDesde !== undefined) {
-      var siguiente = lista.querySelectorAll('.producto')[enfocarDesde];
-      var enlace = siguiente && siguiente.querySelector('a');
-      if (enlace) enlace.focus();
-    }
+    actualizarCarrusel();
 
     if (filtros) {
       filtros.hidden = false;
@@ -288,6 +359,22 @@
     var p = id ? visibles(contenido).filter(function (x) { return x.id === id; })[0] : null;
     var fotoProducto = p ? C.fotoPrincipal(p) : '';
     var foto = fotoProducto || contenido.portada.foto;
+    // Si no carga: la foto de la tienda de siempre; si tampoco, sin foto
+    if (!img.dataset.respaldo) {
+      img.dataset.respaldo = '1';
+      img.addEventListener('error', function () {
+        var deSiempre = srcFoto(FOTO_TIENDA);
+        if (img.getAttribute('src') !== deSiempre) {
+          img.src = deSiempre;
+          img.alt = ALT_TIENDA;
+        } else {
+          img.hidden = true;
+          if (img.parentNode) img.parentNode.classList.add('portada__foto--sin');
+        }
+      });
+    }
+    img.hidden = false;
+    if (img.parentNode) img.parentNode.classList.remove('portada__foto--sin');
     img.src = srcFoto(foto);
     img.alt = fotoProducto ? p.nombre : foto === FOTO_TIENDA ? ALT_TIENDA : 'Nuestra tienda';
 
@@ -324,8 +411,7 @@
     function filtrar(nombre) {
       if (!FILTROS[nombre]) return;
       filtroActual = nombre;
-      todosALaVista = false;
-      pintarEscaparate(contenido);
+      pintarEscaparate(contenido, true);
     }
     if (filtros) {
       filtros.addEventListener('click', function (e) {
@@ -345,28 +431,13 @@
         }
       });
     });
-    var mas = document.getElementById('ver-todos');
-    if (mas) {
-      mas.addEventListener('click', function () {
-        todosALaVista = true;
-        pintarEscaparate(contenido, limite());
-      });
-    }
+    iniciarCarrusel();
     pintarEscaparate(contenido);
     pintarTira(contenido);
     pintarPortada(contenido);
 
-    // Si cambia el número de columnas (girar el móvil, estrechar la ventana), se recalcula cuántos se ven
-    if (window.matchMedia) {
-      var mq = window.matchMedia('(min-width: 681px)');
-      var alCambiar = function () { if (!todosALaVista) pintarEscaparate(contenido); };
-      if (mq.addEventListener) mq.addEventListener('change', alCambiar);
-      else if (mq.addListener) mq.addListener(alCambiar);
-    }
-
-    // Si el panel está abierto en otra pestaña, la web se actualiza sola al guardar
-    window.addEventListener('storage', function (e) {
-      if (e.key !== C.CLAVE && e.key !== null) return;
+    // Cuando llega lo del servidor, o el panel guarda en otra pestaña, se repinta
+    C.alCambiar(function () {
       contenido = window.cargarContenido();
       pintarEscaparate(contenido);
       pintarTira(contenido);
@@ -380,6 +451,7 @@
     pintarPortada: pintarPortada,
     piezas: {
       el: el, icono: icono, iconoWa: iconoWa, srcFoto: srcFoto, crearPrecio: crearPrecio,
+      siFalla: siFalla, marcadorEnLugar: marcadorEnLugar,
       nuevaPestana: nuevaPestana, visibles: visibles,
       mensajeReserva: mensajeReserva, mensajeAviso: mensajeAviso, mensajePregunta: mensajePregunta
     }

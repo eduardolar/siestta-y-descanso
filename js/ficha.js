@@ -17,6 +17,7 @@
   var origen = null;     // { id, nodo }: la tarjeta desde la que se abrió, para devolverle el foco
   var empujada = false;  // la ficha tiene su propia entrada en el historial (cerrar = volver atrás)
   var temporizadorAviso;
+  var pendiente = null;  // id de un enlace #p/… que se abrirá cuando llegue lo del servidor
 
   function movimiento() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
@@ -70,6 +71,8 @@
         img.src = P.srcFoto(f);
         img.alt = fotos.length > 1 ? p.nombre + ', foto ' + (i + 1) + ' de ' + fotos.length : p.nombre;
         img.decoding = 'async';
+        // Si no carga, el marcador de «sin foto» en su sitio
+        P.siFalla(img, P.marcadorEnLugar(p.categoria, 'galeria__marcador'));
         li.appendChild(img);
         pista.appendChild(li);
       });
@@ -108,6 +111,7 @@
       var img = el('img');
       img.src = P.srcFoto(f);
       img.alt = '';
+      P.siFalla(img, function (i) { i.hidden = true; });
       b.appendChild(img);
       b.addEventListener('click', function () { ir(i); });
       minis.appendChild(b);
@@ -253,6 +257,7 @@
         img.alt = '';
         img.loading = 'lazy';
         img.decoding = 'async';
+        P.siFalla(img, function (i) { if (i.parentNode) i.parentNode.replaceChild(P.icono(x.categoria), i); });
         foto.appendChild(img);
       } else {
         foto.appendChild(P.icono(x.categoria));
@@ -445,11 +450,20 @@
     window.addEventListener('popstate', sincronizar);
     window.addEventListener('hashchange', sincronizar);
 
-    // Cambios del panel en otra pestaña: se repinta la ficha abierta, o se cierra si ya no está a la venta
-    window.addEventListener('storage', function (e) {
-      if (e.key !== C.CLAVE && e.key !== null) return;
+    // Llega lo del servidor, o el panel cambia algo en otra pestaña: se repinta la ficha abierta, o se
+    // cierra si ya no está a la venta. Si se entró con un enlace #p/… de un producto que aún no estaba
+    // (la caché era vieja), se abre ahora
+    C.alCambiar(function () {
       contenido = window.cargarContenido();
-      if (!dialogo.open) return;
+      if (!dialogo.open) {
+        if (pendiente && idDelHash() === pendiente && buscar(pendiente)) {
+          var idp = pendiente;
+          pendiente = null;
+          abrir(idp);
+          empujada = entradaNuestra();
+        }
+        return;
+      }
       var p = buscar(actual);
       if (!p) { cerrar(); return; }
       var conFoco = dialogo.contains(document.activeElement);
@@ -463,6 +477,19 @@
     var id = idDelHash();
     if (id === null) return;
     var p = buscar(id);
+    // Aún no está en lo que hay (caché o ejemplo): se espera a lo del servidor antes de dar el enlace por malo
+    var D = window.Datos;
+    if (!p && id && D && D.primeraCarga) {
+      pendiente = id;
+      D.primeraCarga.then(function () {
+        if (pendiente !== id) return;
+        pendiente = null;
+        if (idDelHash() === id && !buscar(id)) {
+          try { history.replaceState(null, '', urlSinHash()); } catch (e) { /* nada */ }
+        }
+      });
+      return;
+    }
     try {
       if (!p) history.replaceState(null, '', urlSinHash());
       else history.replaceState(history.state, '', PREFIJO + p.id); // #p/col-01 → #p/COL-01

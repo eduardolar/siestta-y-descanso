@@ -1,0 +1,2 @@
+/* Panel: oculto hasta que js/marco.js compruebe que no está dentro de un marco de otra web */
+html { display: none; }

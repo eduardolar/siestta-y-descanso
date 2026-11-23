@@ -1,8 +1,7 @@
 // Contenido de la web: datos de la tienda, textos de portada y productos del escaparate.
-// La web y el panel (admin.html) lo leen de aquí. Lo que cambia la dueña en el panel se
-// guarda en este navegador (localStorage); si no hay nada guardado, o falla, se usa el ejemplo.
-//
-// Es un prototipo: en la versión real esto vendría de un servicio común (ver README).
+// La fuente de verdad es la base de datos (Supabase, ver js/datos.js). Aquí están el modelo, la
+// revisión de todo lo que llega (normalizar) y una CACHÉ en este navegador (localStorage) con el
+// último contenido bueno, para que la web cargue al instante; si no hay caché, o falla, el ejemplo.
 (function () {
   'use strict';
 
@@ -39,6 +38,8 @@
     fotos: 4, descripcionLarga: 1000, medidas: 120, colores: 160, plazo: 60, zonaEntrega: 80 };
   // La entradilla de antes de la versión 3 prometía la entrega a todos: si sigue sin tocar, se cambia
   var ENTRADILLA_V2 = 'En Tomelloso, con quien te atiende en persona. Pruébalo, elegimos contigo medida, tela y color, y te lo llevamos a casa.';
+  // Enlace a las opiniones: solo Google Maps, con el dominio anclado (igual que la base de datos)
+  var RE_ENLACE_OPINIONES = /^https:\/\/(www\.)?google\.(com|es)\/maps([/?]|$)|^https:\/\/maps\.app\.goo\.gl\/|^https:\/\/g\.page\//;
   var ENLACE_GOOGLE = 'https://www.google.com/maps/search/?api=1&query=Siestta%20y%20Descanso%20Tomelloso';
 
   // Productos de EJEMPLO para enseñar el escaparate. Los tres precios son los publicados
@@ -66,9 +67,9 @@
       total: 28,
       enlace: ENLACE_GOOGLE,
       lista: [
-        { texto: 'Super contentos con la compra que hemos hecho con ellos… super amables y muy profesionales.', autor: 'Brian Lara' },
-        { texto: 'Buen trato, personal muy cercano y atento a escuchar nuestras necesidades… mejor calidad precio de todos los que habíamos visto.', autor: 'Rubén Chamorro' },
-        { texto: 'Calidad-precio inmejorable. He buscado por toda la provincia y no he encontrado nada mejor.', autor: 'Sara Victoria Moreno' }
+        { texto: 'Super contentos con la compra que hemos hecho con ellos… super amables y muy profesionales.', autor: 'Brian L.' },
+        { texto: 'Buen trato, personal muy cercano y atento a escuchar nuestras necesidades… mejor calidad precio de todos los que habíamos visto.', autor: 'Rubén C.' },
+        { texto: 'Calidad-precio inmejorable. He buscado por toda la provincia y no he encontrado nada mejor.', autor: 'Sara Victoria M.' }
       ]
     },
     // Sí ofrecen financiación; las condiciones no se conocen, así que no se inventan
@@ -168,18 +169,36 @@
     return Math.round(n * 100) / 100;
   }
 
-  // Solo se aceptan fotos de la carpeta img/ o fotos JPEG/PNG/WebP incrustadas.
-  function fotoValida(foto) {
-    if (typeof foto !== 'string' || !foto) return false;
-    if (/^img\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp)$/i.test(foto) && foto.indexOf('..') === -1) return true;
-    return /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(foto);
+  // Fotos: una ruta de la carpeta img/ (las que van con la web) o una ruta del bucket «fotos» de
+  // Supabase: productos/{ref}/{uuid}.jpg o portada/{uuid}.jpg (como las reglas de la base de datos).
+  // Las fotos incrustadas (data:…) del prototipo ya no valen: las fotos se suben al bucket.
+  var RE_IMG = /^img\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp)$/i;
+  var RE_ALMACEN = /^(productos\/[A-Z]{3}-\d{2,4}|portada)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+
+  function esRutaImg(foto) { return typeof foto === 'string' && foto.length <= 200 && RE_IMG.test(foto) && foto.indexOf('..') === -1; }
+  function esRutaAlmacen(foto) { return typeof foto === 'string' && RE_ALMACEN.test(foto); }
+  function fotoValida(foto) { return esRutaImg(foto) || esRutaAlmacen(foto); }
+  // De un producto: de img/ o de su propia carpeta del bucket (productos/{ref}/…)
+  function fotoDeProducto(foto, ref) {
+    return esRutaImg(foto) || (esRutaAlmacen(foto) && foto.indexOf('productos/' + ref + '/') === 0);
+  }
+  function fotoDePortada(foto) { return esRutaImg(foto) || (esRutaAlmacen(foto) && foto.indexOf('portada/') === 0); }
+
+  // Dirección de una foto para <img>: las de img/ son relativas (con ?v= para la caché del navegador);
+  // las del bucket, su URL pública (el nombre es un uuid nuevo cada vez: no hace falta ?v=)
+  function urlFoto(foto, version) {
+    if (esRutaAlmacen(foto)) {
+      var cfg = window.SIESTTA_CONFIG || {};
+      return String(cfg.url || '').replace(/\/+$/, '') + '/storage/v1/object/public/fotos/' + foto;
+    }
+    return foto + (version ? '?v=' + version : '');
   }
 
-  // Hasta 4 fotos válidas y sin repetir; la primera es la principal
-  function normalizarFotos(fotos) {
+  // Hasta 4 fotos válidas y sin repetir; la primera es la principal. Con ref, solo las de ese producto
+  function normalizarFotos(fotos, ref) {
     var vistas = {};
     return (Array.isArray(fotos) ? fotos : []).filter(function (f) {
-      if (!fotoValida(f) || vistas[f]) return false;
+      if (!(ref ? fotoDeProducto(f, ref) : fotoValida(f)) || vistas[f]) return false;
       vistas[f] = true;
       return true;
     }).slice(0, LIMITES.fotos);
@@ -345,7 +364,7 @@
       etiqueta: ETIQUETAS.hasOwnProperty(p.etiqueta) ? p.etiqueta : '',
       estado: ESTADOS.hasOwnProperty(p.estado) ? p.estado : 'disponible',
       // Datos sin migrar con la foto suelta (p.foto): se aceptan como su única foto
-      fotos: normalizarFotos(Array.isArray(p.fotos) ? p.fotos : [p.foto]),
+      fotos: normalizarFotos(Array.isArray(p.fotos) ? p.fotos : [p.foto], id),
       descripcion: unaLinea(p.descripcion, LIMITES.descripcion, ''),
       descripcionLarga: parrafos(p.descripcionLarga, LIMITES.descripcionLarga),
       medidas: unaLinea(p.medidas, LIMITES.medidas, ''),
@@ -394,7 +413,7 @@
     var nota = numero(op.nota);
     var total = numero(op.total);
     var enlace = typeof op.enlace === 'string' &&
-      /^https:\/\/((www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+\/|g\.page\/|maps\.app\.goo\.gl\/)/.test(op.enlace)
+      RE_ENLACE_OPINIONES.test(op.enlace) && op.enlace.length <= 500 && !/[\s<>"']/.test(op.enlace)
       ? op.enlace : ENLACE_GOOGLE;
     var lista = Array.isArray(op.lista) ? op.lista.slice(0, LIMITES.opiniones).map(function (o) {
       return o && typeof o === 'object'
@@ -425,7 +444,7 @@
         entradilla: unaLinea(p.entradilla, LIMITES.entradilla, '') || ej.portada.entradilla,
         // Solo si es un producto que se ve en la web: si se vende o se borra, la portada se queda sin destacado
         destacado: productos.some(function (x) { return x.id === destacado && x.estado !== 'vendido'; }) ? destacado : '',
-        foto: fotoValida(p.foto) ? p.foto : ej.portada.foto
+        foto: fotoDePortada(p.foto) ? p.foto : ej.portada.foto
       },
       desde: desde,
       opiniones: {
@@ -475,40 +494,76 @@
     return c;
   }
 
-  // ---------- Cargar y guardar ----------
+  // ---------- Caché en este navegador (el último contenido bueno que llegó del servidor) ----------
 
+  // Lo que hay en la caché, revisado; si no hay nada o no se puede leer, el ejemplo
   function cargarContenido() {
+    if (memoria) return copiar(memoria);
     try {
       var crudo = window.localStorage.getItem(CLAVE);
       if (!crudo) return normalizar(copiar(CONTENIDO_EJEMPLO));
       var datos = migrar(JSON.parse(crudo));
-      if (!datos) return normalizar(copiar(CONTENIDO_EJEMPLO));
-      return normalizar(datos);
+      var bueno = datos ? cacheValida(datos) : null;
+      if (bueno) return bueno;
+      // Caché estropeada (o de una versión más nueva): se descarta y se usa el ejemplo
+      if (datos) window.localStorage.removeItem(CLAVE);
+      return normalizar(copiar(CONTENIDO_EJEMPLO));
     } catch (e) {
       return normalizar(copiar(CONTENIDO_EJEMPLO));
     }
   }
 
-  // Devuelve { ok: true } o { ok: false, motivo: 'cuota' | 'error' }
-  function guardarContenido(c) {
-    try {
-      window.localStorage.setItem(CLAVE, JSON.stringify(normalizar(c)));
-      return { ok: true };
-    } catch (e) {
-      var cuota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
-      return { ok: false, motivo: cuota ? 'cuota' : 'error' };
+  // La caché normalizada, o null si no es de fiar: tienda y portada tienen que ser objetos y TODOS sus
+  // productos tienen que seguir siendo válidos tras revisarlos (si alguno se pierde, algo la ha estropeado)
+  function cacheValida(c) {
+    if (!c || typeof c !== 'object' || !Array.isArray(c.productos)) return null;
+    if (!c.tienda || typeof c.tienda !== 'object' || !c.portada || typeof c.portada !== 'object') return null;
+    var n = normalizar(c);
+    if (n.productos.length !== Math.min(c.productos.length, LIMITES.productos)) return null;
+    var ids = {};
+    for (var i = 0; i < c.productos.length && i < LIMITES.productos; i++) {
+      var p = c.productos[i];
+      if (!p || typeof p !== 'object' || typeof p.id !== 'string' || ids[p.id]) return null;
+      ids[p.id] = true;
     }
+    return n;
   }
 
-  function restaurarEjemplo() {
-    try { window.localStorage.removeItem(CLAVE); } catch (e) { /* sin almacenamiento: ya es el ejemplo */ }
-    return normalizar(copiar(CONTENIDO_EJEMPLO));
+  // Guarda en la caché y avisa a esta pestaña (las demás se enteran por el evento «storage»).
+  // Si no se puede (modo privado, sin espacio), no pasa nada: la web sigue con lo que tiene.
+  // También se queda en memoria, por si este navegador no deja guardar (modo privado).
+  var EVENTO = 'siestta:contenido';
+  var memoria = null;
+  function guardarContenido(c) {
+    var nuevo = normalizar(c);
+    var texto = JSON.stringify(nuevo);
+    var antes = memoria ? JSON.stringify(memoria) : null;
+    var ok = true;
+    memoria = nuevo;
+    try {
+      antes = antes || window.localStorage.getItem(CLAVE);
+      if (antes !== texto) window.localStorage.setItem(CLAVE, texto);
+    } catch (e) {
+      ok = false;
+    }
+    if (antes === texto) return { ok: ok, igual: true };
+    try { window.dispatchEvent(new CustomEvent(EVENTO)); } catch (e) { /* navegador muy antiguo */ }
+    return { ok: ok };
+  }
+
+  // Llama a fn cuando cambia el contenido: aquí (llega lo del servidor) o en otra pestaña (la caché)
+  function alCambiar(fn) {
+    window.addEventListener(EVENTO, function () { fn(); });
+    window.addEventListener('storage', function (e) {
+      if (e.key !== CLAVE && e.key !== null) return;
+      memoria = null;
+      fn();
+    });
   }
 
   window.CONTENIDO_EJEMPLO = CONTENIDO_EJEMPLO;
   window.cargarContenido = cargarContenido;
   window.guardarContenido = guardarContenido;
-  window.restaurarEjemplo = restaurarEjemplo;
 
   window.Contenido = {
     CLAVE: CLAVE,
@@ -520,6 +575,10 @@
     LIMITES: LIMITES,
     fotoPrincipal: fotoPrincipal,
     normalizarFotos: normalizarFotos,
+    esRutaAlmacen: esRutaAlmacen,
+    fotoDeProducto: fotoDeProducto,
+    urlFoto: urlFoto,
+    alCambiar: alCambiar,
     NOMBRES_DIA: NOMBRES_DIA,
     normalizar: normalizar,
     normalizarProducto: normalizarProducto,

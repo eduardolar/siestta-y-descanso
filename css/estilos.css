@@ -349,8 +349,36 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .llamada__texto { font-size: 1rem; color: rgb(255 255 255 / .88); max-width: 40ch; }
 .llamada__boton { margin-top: 0; }
 
-.escaparate__mas { display: flex; margin: 24px auto 0; background: var(--blanco); }
-.escaparate__mas[hidden] { display: none; }
+/* «Ahora en tienda» en carrusel: una sola fila deslizable con «snap». Se ven ~3 tarjetas en escritorio,
+   ~2 en tableta y ~1,3 en el móvil (asoma la siguiente para que se vea que se desliza) */
+.carrusel { position: relative; margin-top: 26px; }
+.carrusel[hidden] { display: none; }
+.productos.carrusel__pista {
+  margin: 0 -4px; padding: 4px 4px 10px;                  /* sitio para el contorno del foco */
+  display: grid; grid-template-columns: none; grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 2 * 24px) / 3); gap: 24px;
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+  scroll-padding-inline: 4px; scrollbar-width: none;
+}
+.carrusel__pista::-webkit-scrollbar { display: none; }
+.carrusel__pista > li { position: relative; scroll-snap-align: start; } /* lo «visualmente oculto» de dentro no se sale del carrusel */
+@media (prefers-reduced-motion: no-preference) { .carrusel__pista { scroll-behavior: smooth; } }
+.carrusel__flecha {
+  position: absolute; top: calc(50% - 64px); z-index: 2; width: 48px; height: 48px; padding: 0; cursor: pointer;
+  display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--blanco); color: var(--tinta); box-shadow: 0 4px 14px rgb(26 20 20 / .25);
+}
+.carrusel__flecha svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.carrusel__flecha:hover { background: var(--tinta); color: #fff; }
+.carrusel__flecha--ant { left: -20px; }
+.carrusel__flecha--sig { right: -20px; }
+.carrusel__flecha[hidden] { display: none; }
+.carrusel__posicion { margin-top: 6px; text-align: center; font-size: .85rem; font-weight: 600; color: var(--tinta-suave); min-height: 1.3em; }
+.escaparate .llamada { margin-top: 22px; }
+@media (max-width: 1100px) { .carrusel__flecha--ant { left: 4px; } .carrusel__flecha--sig { right: 4px; } }
+@media (max-width: 960px) { .productos.carrusel__pista { grid-auto-columns: calc((100% - 16px) / 2.15); gap: 16px; } }
+@media (max-width: 900px) { .carrusel__flecha { display: none; } }
+@media (max-width: 680px) { .productos.carrusel__pista { grid-auto-columns: calc((100% - 12px) / 1.3); gap: 12px; } }
 
 .escaparate__vacio { margin-top: 26px; padding: 28px; background: var(--blanco); border-radius: var(--radio); border-left: 6px solid var(--amarillo); }
 .escaparate__vacio[hidden] { display: none; }
@@ -387,7 +415,9 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .estrellas { position: relative; width: 140px; height: 28px; margin-top: 12px; }
 .estrellas__fila { position: absolute; inset: 0 auto 0 0; width: 100%; overflow: hidden; }
 .estrellas__fila svg { width: 140px; height: 28px; max-width: none; fill: var(--blanco); stroke: var(--tinta); stroke-width: 1.2; stroke-linejoin: round; }
+.estrellas__fila--llena { width: 88%; } /* 4,4 de 5; main.js la ajusta a la nota */
 .estrellas__fila--llena svg { fill: var(--amarillo); }
+.sprite { position: absolute; }
 .opiniones__total { margin-top: 8px; font-weight: 700; font-size: .95rem; }
 .opiniones__nota .enlace-flecha { margin-top: 4px; }
 .citas { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -443,11 +473,10 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .redes__lista svg { width: 18px; height: 18px; }
 .pie__legal {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 20px;
-  margin-top: 28px; padding-top: 8px; border-top: 1px solid rgb(255 255 255 / .18);
+  margin-top: 28px; padding-block: 18px 8px; border-top: 1px solid rgb(255 255 255 / .18);
   font-size: .85rem; color: rgb(255 255 255 / .8);
 }
 .pie a { color: #fff; }
-.pie__acceso a { display: inline-flex; align-items: center; min-height: 44px; color: rgb(255 255 255 / .8); }
 
 /* Barra del móvil */
 .barra-movil { display: none; }
@@ -546,7 +575,6 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .llamada__titulo { font-size: 1.8rem; }
   .llamada__texto { font-size: .92rem; }
   .llamada__boton { align-self: stretch; margin-top: 6px; }
-  .escaparate__mas { width: 100%; margin-top: 20px; }
 
   .siesta { padding: 28px 0 30px; }
   .frase { font-size: 2.1rem; }

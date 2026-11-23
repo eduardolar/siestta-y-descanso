@@ -249,13 +249,32 @@
     });
   }
 
+  // Acceso escondido al panel: 5 toques (o clics) seguidos en el logo de la cabecera, en menos de 3 s
+  // entre el primero y el quinto, llevan a admin.html. Los toques 1 a 4 hacen lo de siempre (subir
+  // arriba). Es el evento «click», así que Enter sobre el logo cuenta igual que un toque.
+  function accesoEscondido() {
+    var logo = document.querySelector('.cabecera .marca');
+    if (!logo) return;
+    var toques = [];
+    logo.addEventListener('click', function (e) {
+      var t = Date.now();
+      toques = toques.filter(function (x) { return t - x < 3000; });
+      toques.push(t);
+      if (toques.length >= 5) {
+        e.preventDefault();
+        toques = [];
+        window.location.href = 'admin.html';
+      }
+    });
+  }
+
   pintarTodo();
   animarAlBajar();
-  // Cada minuto se revisa el «abierto / cerrado»; y si el panel guarda en otra pestaña, se repinta
+  accesoEscondido();
+  // Cada minuto se revisa el «abierto / cerrado»; y cuando llega lo del servidor (o el panel guarda en
+  // otra pestaña), se repinta
   setInterval(function () { pintarEstado(window.cargarContenido().tienda); }, 60000);
-  window.addEventListener('storage', function (e) {
-    if (e.key === C.CLAVE || e.key === null) pintarTodo();
-  });
+  C.alCambiar(pintarTodo);
 
   // Para las pruebas: calcula el estado a una hora concreta sin tocar el reloj
   window.Horario = { textoEstado: textoEstado };
