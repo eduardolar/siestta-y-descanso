@@ -15,9 +15,11 @@
   var ESPERA = CFG.espera || 8000;
   var ESPERA_FOTO = Math.max(ESPERA * 4, 30000);
   var CLAVE_SESION = 'siestta-sesion-v1';
-  var COLUMNAS = { precioAntes: 'precio_antes', descripcionLarga: 'descripcion_larga', aMedida: 'a_medida' };
+  var COLUMNAS = { precioAntes: 'precio_antes', descripcionLarga: 'descripcion_larga', aMedida: 'a_medida', enTemporada: 'en_temporada' };
   var CAMPOS = ['nombre', 'categoria', 'precio', 'precioAntes', 'etiqueta', 'estado', 'fotos', 'descripcion',
-    'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo', 'destacado'];
+    'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo', 'destacado', 'enTemporada'];
+  // Lo que llega con la migración 008 (temporada, anuncio y en_temporada): hasta ejecutarla, la base de datos lo rechaza
+  var MENSAJE_008 = 'La base de datos todavía no admite temporadas ni anuncios. Hay que ejecutar en Supabase la migración 008_temporada.sql.';
 
   // ---------- Errores: un tipo y un mensaje claro en español ----------
 
@@ -36,7 +38,8 @@
   // Reglas (CHECK) de la tabla productos → qué decirle a la persona
   var REGLAS = {
     productos_nombre: 'El nombre tiene que tener de 1 a 60 caracteres, en una línea.',
-    productos_categoria: 'Elige qué es: sofá, sillón, colchón o cama.',
+    // Solo falla si la base de datos aún no tiene la migración 007 (las demás categorías siempre valen)
+    productos_categoria: 'La base de datos todavía no admite accesorios ni «otros». Hay que ejecutar en Supabase la migración 007_categorias_accesorios_otros.sql; mientras, elige otra categoría.',
     productos_precio: 'El precio tiene que ser mayor que 0 y como mucho 1.000.000 €.',
     productos_precio_antes: 'El precio de antes tiene que ser más alto que el precio de ahora.',
     productos_etiqueta: 'Esa etiqueta no vale.',
@@ -66,6 +69,11 @@
     var codigo = String(c.error_code || c.code || ''); // Auth: error_code (texto); PostgREST: code
     var texto = String(c.message || c.msg || c.error_description || c.error || '');
     var estadoStorage = String(c.statusCode || '');
+    // Antes de la 008: la columna en_temporada no existe (PGRST204/42703) o los ajustes no aceptan temporada/anuncio
+    if (/en_temporada/.test(texto) && (codigo === 'PGRST204' || codigo === '42703') ||
+        codigo === '23514' && /clave desconocida en datos: (temporada|anuncio)/.test(texto)) {
+      return crearError('regla', { estado: estado, codigo: codigo, mensaje: MENSAJE_008, message: MENSAJE_008 });
+    }
     if (codigo === '23514' || codigo === '23502' || codigo === '22P02' || codigo === '22003') {
       var m = /constraint "([a-z_]+)"/.exec(texto);
       var mensaje = m && REGLAS[m[1]] ? REGLAS[m[1]]
@@ -153,9 +161,10 @@
   }
 
   // Lo que va en ajustes.datos: el contenido sin los productos
+  // Temporada y anuncio solo van si se han tocado: así, con la base de datos sin la 008, lo demás se sigue guardando
   function ajustesDe(c) {
     var n = C.normalizar(c);
-    return {
+    var d = {
       version: C.VERSION,
       tienda: n.tienda,
       portada: n.portada,
@@ -164,6 +173,9 @@
       marcas: n.marcas,
       desde: n.desde
     };
+    if (!C.temporadaVacia(n.temporada)) d.temporada = n.temporada;
+    if (!C.anuncioVacio(n.anuncio)) d.anuncio = n.anuncio;
+    return d;
   }
 
   var RUTA_PRODUCTOS = '/rest/v1/productos?select=*&order=orden.asc,creado_en.desc,ref.asc';
@@ -212,6 +224,8 @@
     var fila = aFila(p);
     fila.ref = p.id;
     fila.orden = 0; // los nuevos, primero (los de orden 0 van del más nuevo al más viejo)
+    // Sin marcar, no se envía: así se puede añadir aunque la base de datos aún no tenga la 008
+    if (fila.en_temporada === false) delete fila.en_temporada;
     return peticion({ metodo: 'POST', ruta: '/rest/v1/productos', cuerpo: fila, token: token, cabeceras: REPRESENTACION, espera: ESPERA * 2 })
       .then(function (r) { return Array.isArray(r.datos) ? r.datos[0] : r.datos; });
   }

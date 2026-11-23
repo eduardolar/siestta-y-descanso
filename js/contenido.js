@@ -12,7 +12,9 @@
     sofas: 'Sofás',
     sillones: 'Sillones',
     colchones: 'Colchones',
-    camas: 'Camas'
+    camas: 'Camas',
+    accesorios: 'Accesorios',
+    otros: 'Otros'
   };
   var ETIQUETAS = {
     '': 'Ninguna',
@@ -33,9 +35,25 @@
     firme: 'Firme',
     'muy firme': 'Muy firme'
   };
+  // Temporadas que la dueña puede encender en el panel (una banda arriba y, si marca productos, su sección).
+  // texto: el de la banda si no escribe otro; titulo: el de la sección de productos
+  var TEMPORADAS = {
+    ninguna: { nombre: 'Ninguna', texto: '', titulo: '' },
+    navidad: { nombre: 'Navidad', texto: 'Feliz Navidad de parte de Siestta y Descanso', titulo: 'Ofertas de Navidad' },
+    'black-friday': { nombre: 'Black Friday', texto: 'Black Friday en tienda', titulo: 'Black Friday' },
+    rebajas: { nombre: 'Rebajas', texto: 'Rebajas en tienda', titulo: 'Rebajas' },
+    feria: { nombre: 'Feria', texto: 'Feria de Tomelloso: consulta horario', titulo: 'Ofertas de feria' }
+  };
+  // Anuncio destacado (sorteos, eventos…): la pastilla que lleva
+  var TIPOS_ANUNCIO = { sorteo: 'Sorteo', evento: 'Evento', anuncio: 'Anuncio' };
+  // Enlaces del anuncio: solo publicaciones de Instagram, Facebook o TikTok, o WhatsApp (dominio ANCLADO,
+  // igual que la base de datos). Las bases legales, además, en la web propia de las bases.
+  var RE_ENLACE_ANUNCIO = /^https:\/\/((www|m)\.)?(instagram|facebook)\.com(\/|$)|^https:\/\/((www|m|vm|vt)\.)?tiktok\.com(\/|$)|^https:\/\/wa\.me\//;
+  var RE_ENLACE_BASES = /^https:\/\/eduardolar\.github\.io\//;
   var LIMITES = { nombre: 60, descripcion: 140, aviso: 120, titular: 80, entradilla: 220, direccion: 140, productos: 200, lineasTitular: 3, lineasDireccion: 3,
     opiniones: 6, opinion: 220, autor: 40, financiacion: 80, marcas: 12, marca: 30,
-    fotos: 4, descripcionLarga: 1000, medidas: 120, colores: 160, plazo: 60, zonaEntrega: 80 };
+    fotos: 4, descripcionLarga: 1000, medidas: 120, colores: 160, plazo: 60, zonaEntrega: 80,
+    temporada: 60, anuncioTitulo: 60, anuncioTexto: 220, anuncioBoton: 30, enlace: 500 };
   // La entradilla de antes de la versión 3 prometía la entrega a todos: si sigue sin tocar, se cambia
   var ENTRADILLA_V2 = 'En Tomelloso, con quien te atiende en persona. Pruébalo, elegimos contigo medida, tela y color, y te lo llevamos a casa.';
   // Enlace a las opiniones: solo Google Maps, con el dominio anclado (igual que la base de datos)
@@ -82,6 +100,12 @@
       // Uno disponible, con foto propia y precio, para que la foto y el precio coincidan.
       destacado: 'COL-01',
       foto: 'img/tienda-sofa-blanco.jpg'
+    },
+    // Temporada (banda de arriba y sección de sus productos) y anuncio: apagados en el ejemplo
+    temporada: { tipo: 'ninguna', texto: '', hasta: '' },
+    anuncio: {
+      activo: false, tipo: 'sorteo', titulo: '', texto: '', foto: '',
+      boton: { texto: '', enlace: '' }, hasta: '', bases: ''
     },
     // Detalles de la ficha: solo lo que se sabe seguro. Medidas, firmeza y plazos se dejan
     // vacíos (son opcionales y no salen); la cama lleva dos fotos porque es la misma de las dos fotos.
@@ -216,6 +240,96 @@
       .split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); }).join('\n')
       .replace(/\n{3,}/g, '\n\n').trim();
     return Array.from(t).slice(0, max).join('').trim();
+  }
+
+  // ---------- Temporada y anuncio: enlaces y fechas ----------
+
+  // Enlace https de la lista blanca (re), sin espacios, comillas ni caracteres raros; si no, ''
+  function enlaceSeguro(valor, re) {
+    if (typeof valor !== 'string') return '';
+    var t = valor.trim();
+    if (!t || t.length > LIMITES.enlace || /[\u0000-\u0020\u007F<>"'\\`]/.test(t)) return '';
+    return re.test(t) ? t : '';
+  }
+  function enlaceAnuncio(valor) { return enlaceSeguro(valor, RE_ENLACE_ANUNCIO); }
+  function enlaceBases(valor) { return enlaceAnuncio(valor) || enlaceSeguro(valor, RE_ENLACE_BASES); }
+
+  // «2026-12-24» que exista de verdad (no «2026-02-30»); si no, ''
+  function fecha(valor) {
+    if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return '';
+    var d = new Date(valor + 'T00:00:00Z');
+    return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor ? valor : '';
+  }
+
+  // Hoy en Tomelloso (hora de Madrid), como «2026-11-23»
+  function hoyMadrid(ahora) {
+    var d = ahora || new Date();
+    try {
+      var partes = {};
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' })
+        .formatToParts(d).forEach(function (x) { partes[x.type] = x.value; });
+      if (partes.year && partes.month && partes.day) return partes.year + '-' + partes.month + '-' + partes.day;
+    } catch (e) { /* navegador sin zonas horarias */ }
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Sin fecha, siempre; con fecha, hasta ese día incluido (al día siguiente se apaga sola)
+  function vigente(hasta, hoy) { return !hasta || (hoy || hoyMadrid()) <= hasta; }
+
+  // La temporada que se ve ahora: { tipo, texto, titulo } (con los textos por defecto si no hay otros), o null
+  function temporadaActiva(c, hoy) {
+    var t = c && c.temporada;
+    if (!t || !TEMPORADAS.hasOwnProperty(t.tipo) || t.tipo === 'ninguna' || !vigente(t.hasta, hoy)) return null;
+    var def = TEMPORADAS[t.tipo];
+    var texto = t.texto || def.texto;
+    // El texto propio sirve de título de la sección si es corto; si no, el del tipo
+    return { tipo: t.tipo, texto: texto, titulo: t.texto && Array.from(t.texto).length <= 32 ? t.texto : def.titulo, hasta: t.hasta };
+  }
+
+  // El anuncio que se ve ahora, o null (apagado, sin título o caducado)
+  function anuncioActivo(c, hoy) {
+    var a = c && c.anuncio;
+    return a && a.activo && a.titulo && vigente(a.hasta, hoy) ? a : null;
+  }
+
+  // «2027-01-06» → «6 de enero»
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function fechaLegible(f) {
+    if (!fecha(f)) return '';
+    return parseInt(f.slice(8, 10), 10) + ' de ' + MESES[parseInt(f.slice(5, 7), 10) - 1];
+  }
+
+  function normalizarTemporada(t) {
+    t = t && typeof t === 'object' ? t : {};
+    return {
+      tipo: typeof t.tipo === 'string' && TEMPORADAS.hasOwnProperty(t.tipo) ? t.tipo : 'ninguna',
+      texto: unaLinea(t.texto, LIMITES.temporada, ''),
+      hasta: fecha(t.hasta)
+    };
+  }
+
+  function normalizarAnuncio(a) {
+    a = a && typeof a === 'object' ? a : {};
+    var b = a.boton && typeof a.boton === 'object' ? a.boton : {};
+    var titulo = unaLinea(a.titulo, LIMITES.anuncioTitulo, '');
+    return {
+      // Sin título no se puede encender
+      activo: a.activo === true && !!titulo,
+      tipo: typeof a.tipo === 'string' && TIPOS_ANUNCIO.hasOwnProperty(a.tipo) ? a.tipo : 'sorteo',
+      titulo: titulo,
+      texto: unaLinea(a.texto, LIMITES.anuncioTexto, ''),
+      // Va en la carpeta portada/ del bucket (o de img/), como la foto de la tienda
+      foto: fotoDePortada(a.foto) ? a.foto : '',
+      boton: { texto: unaLinea(b.texto, LIMITES.anuncioBoton, ''), enlace: enlaceAnuncio(b.enlace) },
+      hasta: fecha(a.hasta),
+      bases: enlaceBases(a.bases)
+    };
+  }
+
+  // Si están como en el ejemplo (apagados y vacíos): así se pueden dejar fuera de lo que se guarda
+  function temporadaVacia(t) { return !t || (t.tipo === 'ninguna' && !t.texto && !t.hasta); }
+  function anuncioVacio(a) {
+    return !a || (!a.activo && a.tipo === 'sorteo' && !a.titulo && !a.texto && !a.foto && !a.boton.texto && !a.boton.enlace && !a.hasta && !a.bases);
   }
 
   function soloDigitos(t) { return String(t || '').replace(/\D/g, ''); }
@@ -373,12 +487,14 @@
       firmeza: FIRMEZAS.hasOwnProperty(p.firmeza) ? p.firmeza : '',
       aMedida: p.aMedida === true,
       plazo: unaLinea(p.plazo, LIMITES.plazo, ''),
-      destacado: p.destacado === true
+      destacado: p.destacado === true,
+      // Sale también en la sección de la temporada (si hay una encendida)
+      enTemporada: p.enTemporada === true
     };
   }
 
   function nuevoId(categoria, usados) {
-    var prefijo = { sofas: 'SOF', sillones: 'SIL', colchones: 'COL', camas: 'CAM' }[categoria] || 'PRO';
+    var prefijo = { sofas: 'SOF', sillones: 'SIL', colchones: 'COL', camas: 'CAM', accesorios: 'ACC', otros: 'OTR' }[categoria] || 'PRO';
     for (var n = 1; n < 10000; n++) {
       var id = prefijo + '-' + String(n).padStart(2, '0');
       if (!usados[id]) return id;
@@ -455,6 +571,8 @@
       },
       financiacion: { activa: fin.activa === true, texto: unaLinea(fin.texto, LIMITES.financiacion, '') },
       marcas: marcas,
+      temporada: normalizarTemporada(c.temporada),
+      anuncio: normalizarAnuncio(c.anuncio),
       productos: productos
     };
   }
@@ -573,6 +691,19 @@
     ESTADOS: ESTADOS,
     FIRMEZAS: FIRMEZAS,
     LIMITES: LIMITES,
+    TEMPORADAS: TEMPORADAS,
+    TIPOS_ANUNCIO: TIPOS_ANUNCIO,
+    enlaceAnuncio: enlaceAnuncio,
+    enlaceBases: enlaceBases,
+    fecha: fecha,
+    fechaLegible: fechaLegible,
+    hoyMadrid: hoyMadrid,
+    vigente: vigente,
+    temporadaActiva: temporadaActiva,
+    anuncioActivo: anuncioActivo,
+    temporadaVacia: temporadaVacia,
+    anuncioVacio: anuncioVacio,
+    fotoDePortada: fotoDePortada,
     fotoPrincipal: fotoPrincipal,
     normalizarFotos: normalizarFotos,
     esRutaAlmacen: esRutaAlmacen,
@@ -598,6 +729,7 @@
     componerDias: componerDias,
     componerHoras: componerHoras,
     horarioPorDia: horarioPorDia,
-    hhmm: hhmm
+    hhmm: hhmm,
+    sinTildes: sinTildes
   };
 })();
