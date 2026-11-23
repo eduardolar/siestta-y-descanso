@@ -18,7 +18,7 @@
   var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
   var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261123-4';
+  var V = '20261123-10';
 
   var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
   var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
@@ -213,6 +213,7 @@
     }
     return enCola(function () { return intento(0); }).then(function (r) {
       if (r.ok) avisarGuardado(true); else informarFallo(r);
+      pintarEstados();
       if (r.reintento) {
         trasRecargar(false);
         // Después del aviso de quien llama («Guardado»…), para que se lea este
@@ -256,7 +257,7 @@
   var porBorrar = {};
   function enUso(ruta) {
     if (borrador && borrador.fotos.indexOf(ruta) !== -1) return true;
-    if (contenido.portada.foto === ruta) return true;
+    if (contenido.portada.foto === ruta || contenido.anuncio.foto === ruta) return true;
     return contenido.productos.some(function (p) { return p.fotos.indexOf(ruta) !== -1; });
   }
   function borrarLuego(ruta) {
@@ -275,8 +276,95 @@
     if (!e || !campo) return;
     e.hidden = !texto;
     if (texto) e.textContent = texto;
-    if (texto) campo.setAttribute('aria-invalid', 'true');
+    if (texto) { campo.setAttribute('aria-invalid', 'true'); abrirHasta(campo); }
     else campo.removeAttribute('aria-invalid');
+    pintarEstados();
+  }
+
+  // ---------- Errores en plegables y en otras pestañas ----------
+
+  // Abre todos los <details> que contienen n (para que se vea lo que está en rojo)
+  function abrirHasta(n) {
+    for (var d = n.parentElement; d; d = d.parentElement) if (d.tagName === 'DETAILS' && !d.open) d.open = true;
+  }
+  // El primer dato en rojo del panel (fuera de la ficha)
+  function primerError() {
+    return document.querySelector('main [aria-invalid="true"], main .tramo__error:not(:empty)');
+  }
+  // «Portada → Anuncio»: la pestaña y el bloque donde está n
+  function dondeEsta(n) {
+    var partes = [];
+    var hoja = n.closest('.hoja');
+    var tab = hoja && $(hoja.getAttribute('aria-labelledby'));
+    if (tab) partes.push(tab.querySelector('.pestana__texto').textContent.trim());
+    var b = n.closest('.bloque');
+    var t = b && b.querySelector('.bloque__titulo');
+    var nombre = t ? t.textContent.replace(/\s+/g, ' ').trim() : '';
+    if (nombre && nombre !== partes[0]) partes.push(nombre);
+    return partes.join(' → ');
+  }
+  // Lleva a n: abre su pestaña y sus plegables, lo pone a la vista y le da el foco
+  function irA(n) {
+    var hoja = n.closest('.hoja');
+    if (hoja && hoja.hidden) abrirPestana($(hoja.getAttribute('aria-labelledby')));
+    abrirHasta(n);
+    var foco = n.matches('.tramo__error') ? n.closest('.tramo').querySelector('input') : n;
+    if (!foco) return;
+    foco.scrollIntoView({ block: 'center' });
+    foco.focus({ preventScroll: true });
+  }
+
+  // ---------- Estado de cada bloque plegable (en su cabecera, con texto) ----------
+
+  // [texto, tipo]: tipo es «activo», «apagado», «caducado» o «info»
+  function estadoDe(id) {
+    var t, a, n;
+    switch (id) {
+      case 'tienda-foto-bloque':
+        return contenido.portada.foto && !$('tienda-foto-img').hidden ? ['✓ Puesta', 'activo'] : ['Sin foto', 'apagado'];
+      case 'temporada-bloque':
+        t = radioDe('temporada') || 'ninguna';
+        if (t === 'ninguna') return ['Apagada', 'apagado'];
+        if (!C.vigente(C.fecha($('temporada-hasta').value))) return ['Caducada', 'caducado'];
+        return ['✓ ' + C.TEMPORADAS[t].nombre, 'activo'];
+      case 'anuncio-bloque':
+        if (!$('anuncio-activo').checked) return ['Apagado', 'apagado'];
+        if (!C.vigente(C.fecha($('anuncio-hasta').value))) return ['Caducado', 'caducado'];
+        a = radioDe('anuncio-tipo') || 'sorteo';
+        return ['✓ ' + (C.TIPOS_ANUNCIO[a] || 'En la web'), 'activo'];
+      case 'textos-bloque':
+        a = window.CONTENIDO_EJEMPLO.portada;
+        return ($('titular').value.trim() && $('titular').value.trim() !== a.titular) || ($('entradilla').value.trim() && $('entradilla').value.trim() !== a.entradilla)
+          ? ['✓ Propios', 'info'] : ['Los de siempre', 'info'];
+      case 'aviso-bloque':
+        return contenido.tienda.aviso.activo ? ['✓ En la web', 'activo'] : ['Apagado', 'apagado'];
+      case 'horario-bloque':
+        n = $('tramos').children.length;
+        return n ? [n === 1 ? '1 horario' : n + ' horarios', 'info'] : ['Sin horario', 'apagado'];
+      case 'opiniones-bloque':
+        n = $('op-lista').children.length;
+        return [(contenido.opiniones.nota !== null ? '★ ' + textoNota(contenido.opiniones.nota) + ' · ' : '') +
+          (n === 1 ? '1 opinión' : n + ' opiniones'), 'info'];
+      case 'financiacion-bloque':
+        return $('fin-activa').checked ? ['✓ Sí', 'activo'] : ['No', 'apagado'];
+      case 'marcas-bloque':
+        n = contenido.marcas.length;
+        return n ? [n === 1 ? '1 marca' : n + ' marcas', 'info'] : ['Ninguna', 'apagado'];
+      case 'desde-bloque':
+        return contenido.desde ? ['Desde ' + contenido.desde, 'info'] : ['Sin poner', 'apagado'];
+    }
+    return ['', 'info'];
+  }
+  function pintarEstados() {
+    if (!listo) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.plegable[id]'), function (b) {
+      var caja = b.querySelector('.plegable__estado');
+      if (!caja) return;
+      var e = b.querySelector('[aria-invalid="true"], .campo__error:not([hidden]), .tramo__error:not(:empty)')
+        ? ['⚠ Revisar', 'error'] : estadoDe(b.id);
+      caja.textContent = e[0];
+      caja.dataset.tipo = e[1];
+    });
   }
 
   // ---------- Confirmación (diálogo propio) ----------
@@ -451,6 +539,17 @@
       var nombre = el('p', 'item__nombre', p.nombre);
       nombre.title = p.nombre;
       datos.appendChild(nombre);
+      if (p.estado !== 'vendido' && (p.enTemporada || contenido.temporada.tipo !== 'ninguna')) {
+        var bt = el('button', 'item__temporada' + (p.enTemporada ? ' item__temporada--si' : ''),
+          p.enTemporada ? '✓ En la temporada' : '+ A la temporada');
+        bt.type = 'button';
+        bt.dataset.accion = 'temporada';
+        bt.dataset.id = p.id;
+        bt.setAttribute('aria-label', (p.enTemporada ? 'Quitar ' : 'Añadir ') + p.nombre + (p.enTemporada ? ' de la temporada' : ' a la temporada'));
+        datos.appendChild(bt);
+      } else if (p.enTemporada) {
+        datos.appendChild(el('span', 'item__temporada item__temporada--si', 'En la temporada'));
+      }
       var precio = E.crearPrecio(p);
       precio.classList.add('item__precio');
       datos.appendChild(precio);
@@ -537,12 +636,54 @@
       case 'editar':
         abrirFicha(p);
         break;
+      case 'temporada':
+        ponerEnTemporada(p, !p.enTemporada).then(function () { pintarLista({ id: id, accion: 'temporada' }); });
+        break;
     }
   });
+
+  // Marca o desmarca un producto «En la temporada» con la misma ruta que el interruptor de la ficha
+  // (guardarCampos → en_temporada). Cada uno se guarda por su lado: si uno falla, se avisa y los demás siguen
+  // Los que fallan se apuntan y se avisa de todos juntos (aviso que se queda, con «Reintentar»);
+  // un éxito posterior no lo tapa: si queda alguno sin guardar, se vuelve a enseñar ese aviso
+  var fallosTemporada = {}; // id → { nombre, si }
+  function avisarFallosTemporada() {
+    var ids = Object.keys(fallosTemporada);
+    if (!ids.length) return false;
+    var nombres = ids.map(function (id) { return fallosTemporada[id].nombre; }).join(', ');
+    avisar((ids.length === 1 ? '1 no se ha podido guardar: ' : ids.length + ' no se han podido guardar: ') + nombres + '.', {
+      error: true,
+      accion: { texto: 'Reintentar', hacer: reintentarTemporada }
+    });
+    return true;
+  }
+  function reintentarTemporada() {
+    var lista = fallosTemporada;
+    fallosTemporada = {};
+    Object.keys(lista).forEach(function (id) {
+      var p = buscar(id);
+      if (p) ponerEnTemporada(p, lista[id].si).then(function () { pintarLista(); });
+    });
+  }
+  // «Cerrar» el aviso: se da por enterado (lo que no se guardó ya se ve como estaba)
+  $('toast-cerrar').addEventListener('click', function () { fallosTemporada = {}; });
+  function ponerEnTemporada(p, si) {
+    return guardarCampos(p.id, { enTemporada: si }).then(function (r) {
+      if (r.ok) {
+        delete fallosTemporada[p.id];
+        if (!avisarFallosTemporada()) avisar((si ? 'En la temporada: ' : 'Fuera de la temporada: ') + p.nombre);
+      } else {
+        fallosTemporada[p.id] = { nombre: p.nombre, si: si };
+        avisarFallosTemporada();
+      }
+      return r;
+    });
+  }
 
   // ---------- Ficha de producto ----------
 
   var ficha = $('ficha');
+  var previaFicha = $('ficha-previa-caja');
   var form = $('ficha-form');
   var borrador = null;     // el producto que se está editando
   var esNuevo = false;
@@ -559,75 +700,85 @@
   function textoNumero(n) { return n === null ? '' : String(n).replace('.', ','); }
   function leerPrecio(texto) { return C.numero(texto.replace(/€/g, '').trim()); }
 
-  // Hasta 4 fotos: la grande es la principal; debajo, la lista con «Hacer principal» y «Quitar»
-  // enfoque: { i, accion } para devolver el foco al botón equivalente tras repintar
-  function pintarFotos(enfoque) {
+  // Hasta 4 fotos: arriba, en grande, la que se está viendo (fotoVista), con «Hacer principal» y «Quitar»;
+  // debajo, las miniaturas (tocar una la pone en grande) y una última «+» para añadir otra.
+  // La primera de borrador.fotos es la principal (la de la tarjeta).
+  // enfocar: tras repintar, el foco va a la miniatura que se ve (o a «+», o a la caja de la foto)
+  var fotoVista = 0;
+  function pintarFotos(enfocar) {
     var fotos = borrador.fotos;
-    var img = $('foto-img');
     var hay = fotos.length > 0;
     var lleno = fotos.length >= C.LIMITES.fotos;
+    if (fotoVista >= fotos.length) fotoVista = fotos.length - 1;
+    if (!(fotoVista >= 0)) fotoVista = 0;
+    var img = $('foto-img');
     img.hidden = !hay;
-    if (hay) img.src = srcFoto(fotos[0]);
-    else img.removeAttribute('src');
-    $('foto-vacia').hidden = hay;
-    $('foto-cambiar').hidden = !hay || lleno;
-    $('foto-caja').setAttribute('aria-label', !hay ? 'Hacer una foto del producto'
-      : lleno ? 'Foto principal. Ya hay ' + C.LIMITES.fotos + ' fotos' : 'Hacer otra foto del producto');
+    if (hay) {
+      img.src = srcFoto(fotos[fotoVista]);
+      img.alt = 'Foto ' + (fotoVista + 1) + ' de ' + fotos.length + (fotoVista === 0 ? ' (principal)' : '');
+    } else {
+      img.removeAttribute('src');
+    }
+    $('foto-rota').hidden = true;
+    $('foto-caja').hidden = hay;
+    $('foto-principal').hidden = !hay || fotoVista !== 0;
+    $('foto-botones').hidden = !hay;
+    $('foto-hacer-principal').hidden = fotoVista === 0;
+    $('foto-hacer-principal').dataset.foto = fotoVista;
+    $('foto-quitar').dataset.foto = fotoVista;
+    $('foto-quitar').setAttribute('aria-label', 'Quitar la foto ' + (fotoVista + 1));
     $('foto-elegir').hidden = lleno;
 
     var ol = $('fotos-lista');
     ol.textContent = '';
     ol.hidden = !hay;
     fotos.forEach(function (f, i) {
-      var li = el('li', 'foto-item');
+      var li = el('li');
+      var b = el('button', 'foto-mini');
+      b.type = 'button';
+      b.dataset.foto = i;
+      b.dataset.accion = 'ver';
+      b.setAttribute('aria-pressed', i === fotoVista ? 'true' : 'false');
+      b.setAttribute('aria-label', 'Ver la foto ' + (i + 1) + (i === 0 ? ' (principal)' : ''));
       var mini = el('img');
       mini.src = srcFoto(f);
       mini.alt = '';
-      mini.width = 56;
-      mini.height = 56;
-      E.siFalla(mini, function (i) { i.alt = 'No se ve'; i.classList.add('foto-rota'); });
-      li.appendChild(mini);
-      if (i === 0) {
-        li.appendChild(el('span', 'foto-item__principal', 'Principal'));
-      } else {
-        var b = el('button', 'boton boton--linea foto-item__hacer', 'Hacer principal');
-        b.type = 'button';
-        b.dataset.foto = i;
-        b.dataset.accion = 'principal';
-        b.setAttribute('aria-label', 'Hacer principal la foto ' + (i + 1));
-        li.appendChild(b);
-      }
-      // «Quitar»: una papelera apartada a la derecha (con «Deshacer» en el aviso)
-      var q = el('button', 'foto-item__quitar');
-      q.type = 'button';
-      q.dataset.foto = i;
-      q.dataset.accion = 'quitar';
-      q.title = 'Quitar';
-      q.setAttribute('aria-label', 'Quitar foto ' + (i + 1));
-      q.appendChild(iconoPapelera());
-      li.appendChild(q);
+      mini.width = 64;
+      mini.height = 64;
+      E.siFalla(mini, function (m) { m.classList.add('foto-rota'); });
+      b.appendChild(mini);
+      if (i === 0) b.appendChild(el('span', 'foto-mini__principal', '★')).setAttribute('aria-hidden', 'true');
+      li.appendChild(b);
       ol.appendChild(li);
     });
+    if (!lleno) {
+      var li = el('li');
+      var mas = el('button', 'foto-mini foto-mini--anadir');
+      mas.type = 'button';
+      mas.dataset.accion = 'anadir';
+      mas.setAttribute('aria-label', conRaton ? 'Añadir fotos' : 'Hacer otra foto');
+      mas.appendChild(iconoSprite('i-mas'));
+      li.appendChild(mas);
+      ol.appendChild(li);
+    }
     // «Grande en la portada» necesita una foto (si ya estaba puesto, se puede quitar igualmente)
     var portada = $('f-portada');
     portada.disabled = !hay && !portada.checked;
     $('f-portada-nota').hidden = !portada.disabled;
-    if (enfoque) {
-      var destino = ol.querySelector('[data-foto="' + enfoque.i + '"][data-accion="' + enfoque.accion + '"]') ||
-        ol.querySelector('[data-accion="quitar"]') || $('foto-caja');
+    if (enfocar) {
+      var destino = ol.querySelector('[aria-pressed="true"]') || ol.querySelector('[data-accion="anadir"]') || $('foto-caja');
       destino.focus();
     }
   }
 
-  function iconoPapelera() {
+  function iconoSprite(id) {
     var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('class', 'icono');
     s.setAttribute('aria-hidden', 'true');
-    ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6M14 11v6'].forEach(function (d) {
-      var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      p.setAttribute('d', d);
-      s.appendChild(p);
-    });
+    s.setAttribute('focusable', 'false');
+    var u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    u.setAttribute('href', '#' + id);
+    s.appendChild(u);
     return s;
   }
 
@@ -663,6 +814,8 @@
     borrador.etiqueta = valorRadio('etiqueta');
     borrador.descripcion = $('f-descripcion').value.replace(/\s+/g, ' ').trim();
     borrador.destacado = $('f-destacado').checked;
+    borrador.enTemporada = $('f-temporada').checked;
+    $('f-temporada-nota').hidden = !!C.temporadaActiva(contenido);
     // Más detalles (opcional). La firmeza solo se pregunta en los colchones, pero se conserva si se cambia
     borrador.descripcionLarga = $('f-larga').value;
     borrador.medidas = $('f-medidas').value.replace(/\s+/g, ' ').trim();
@@ -685,9 +838,20 @@
       borrador.precio = precio !== null && precio <= 0 ? null : precio;
     }
 
-    var ta = $('f-antes').value.trim();
+    // «Rebajado» sin marcar = sin precio de antes (lo escrito se queda en la casilla por si se vuelve a marcar).
+    // Marcado, hacen falta los dos precios: el aviso sale al salir del campo o al guardar (dataset.tocado)
+    var rebajado = $('f-rebajado').checked;
+    var ta = rebajado ? $('f-antes').value.trim() : '';
     var antes = ta === '' ? null : leerPrecio(ta);
-    if (ta !== '' && antes === null) {
+    var tocadoAntes = !!$('f-antes').dataset.tocado;
+    if (rebajado && borrador.precio === null && errores.indexOf('f-precio') === -1) {
+      errorCampo('f-precio', tocadoAntes ? 'Pon primero el precio de ahora.' : '');
+      errorCampo('f-antes', '');
+      errores.push('f-precio');
+    } else if (rebajado && ta === '') {
+      errorCampo('f-antes', tocadoAntes ? 'Pon el precio de antes.' : '');
+      errores.push('f-antes');
+    } else if (ta !== '' && antes === null) {
       errorCampo('f-antes', 'Escribe solo el número.');
       errores.push('f-antes');
     } else if (antes !== null && (borrador.precio === null || antes <= borrador.precio)) {
@@ -706,11 +870,12 @@
 
   function mostrarErrores(errores) {
     $('f-nombre').dataset.tocado = '1';
+    $('f-antes').dataset.tocado = '1';
     leerFicha();
     $('ficha-error').textContent = errores[0] === 'f-nombre'
       ? 'Falta el nombre del producto.'
       : 'Revisa lo que está marcado en rojo.';
-    if (errores[0] === 'f-antes') $('f-antes-caja').open = true;
+    if (errores[0] === 'f-antes') { $('f-rebajado').checked = true; $('f-antes-caja').hidden = false; }
     $(errores[0]).focus();
   }
 
@@ -727,7 +892,10 @@
     radioSi('etiqueta', p.etiqueta);
     poner('f-precio', 'value', textoNumero(p.precio));
     poner('f-antes', 'value', textoNumero(p.precioAntes));
+    if ($('f-rebajado') !== foco && $('f-antes') !== foco) $('f-rebajado').checked = p.precioAntes !== null;
+    $('f-antes-caja').hidden = !$('f-rebajado').checked;
     poner('f-destacado', 'checked', p.destacado);
+    poner('f-temporada', 'checked', p.enTemporada === true);
     poner('f-descripcion', 'value', p.descripcion);
     poner('f-larga', 'value', p.descripcionLarga);
     poner('f-medidas', 'value', p.medidas);
@@ -766,13 +934,14 @@
     borrador = p ? copiar(p) : {
       id: C.nuevoId('sofas', usados), nombre: '', categoria: 'sofas', precio: null, precioAntes: null,
       etiqueta: '', estado: 'disponible', fotos: [], descripcion: '', destacado: false,
-      descripcionLarga: '', medidas: '', colores: '', firmeza: '', aMedida: false, plazo: ''
+      descripcionLarga: '', medidas: '', colores: '', firmeza: '', aMedida: false, plazo: '', enTemporada: false
     };
     $('ficha-titulo').textContent = esNuevo ? 'Nuevo producto' : 'Editar producto';
     $('ficha-ref').textContent = 'Ref. ' + borrador.id;
     delete $('f-nombre').dataset.tocado;
+    delete $('f-antes').dataset.tocado;
     rellenarFicha(borrador, false);
-    $('f-antes-caja').open = borrador.precioAntes !== null;
+    fotoVista = 0;
     // Plegado en el alta rápida; abierto si ya tiene algún detalle
     $('f-mas').open = !!(borrador.descripcionLarga || borrador.medidas || borrador.colores ||
       borrador.firmeza || borrador.aMedida || borrador.plazo);
@@ -782,7 +951,7 @@
     $('ficha-cancelar').hidden = !esNuevo;
     $('ficha-borrar').hidden = esNuevo;
     $('ficha-nota').hidden = esNuevo;
-    $('ficha-guardar').textContent = esNuevo ? 'Añadir a la web' : 'Guardar y cerrar';
+    $('ficha-guardar').textContent = esNuevo ? 'Añadir a la web' : 'Cerrar';
     leerFicha();
     pintarFotos();
     pintarPrevia();
@@ -793,6 +962,7 @@
   // descartar: un producto nuevo que no se añade (sus fotos ya subidas se borran del bucket)
   function cerrarFicha(descartar) {
     clearTimeout(temporizadorFicha);
+    if (previaFicha.open) previaFicha.close();
     if (ficha.open) ficha.close();
     if (descartar === true && esNuevo && borrador) borrarDelBucket(borrador.fotos);
     blobsNuevo = {};
@@ -808,7 +978,7 @@
   // abrió la ficha (comparando con alAbrir), sobre lo último guardado: así no se pisa lo que otra
   // pestaña haya cambiado en ese producto (fotos, precio…). El estado (reservado/vendido) no se toca.
   var CAMPOS_FICHA = ['nombre', 'categoria', 'precio', 'precioAntes', 'etiqueta', 'fotos', 'descripcion', 'destacado',
-    'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo'];
+    'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo', 'enTemporada'];
   var alAbrir = null;  // el producto tal como estaba al abrir la ficha (o tras el último guardado de esta pestaña)
 
   // El borrador tal como se guardaría (con los textos ya limpios, como los acepta la base de datos)
@@ -1003,6 +1173,38 @@
   });
 
   $('ficha-cancelar').addEventListener('click', cancelarFicha);
+
+  // «Rebajado»: enseña (o esconde) el precio de antes
+  // Al marcarlo, si la etiqueta está en «Ninguna», se pone «Oferta» (no se pisa otra elegida)
+  $('f-rebajado').addEventListener('change', function () {
+    $('f-antes-caja').hidden = !this.checked;
+    if (!borrador) return;
+    if (this.checked && !valorRadio('etiqueta')) {
+      radio('etiqueta', 'oferta');
+      leerFicha();
+      pintarPrevia();
+      clearTimeout(temporizadorFicha);
+      temporizadorFicha = setTimeout(guardarEdicion, 500);
+    }
+    if (this.checked && !$('f-antes').value.trim()) $('f-antes').focus();
+  });
+  // El aviso del precio de antes sale al salir del campo (no mientras se escribe)
+  $('f-antes').addEventListener('blur', function () {
+    if (!borrador || !$('f-rebajado').checked) return;
+    $('f-antes').dataset.tocado = '1';
+    leerFicha();
+  });
+
+  // «Vista previa»: la tarjeta tal como saldrá en la web, en una ventanita encima de la ficha
+  $('ficha-previa-abrir').addEventListener('click', function () {
+    if (!borrador) return;
+    pintarPrevia();
+    previaFicha.showModal();
+    $('ficha-previa-cerrar').focus();
+  });
+  $('ficha-previa-cerrar').addEventListener('click', function () { previaFicha.close(); });
+  previaFicha.addEventListener('click', function (e) { if (e.target === previaFicha) previaFicha.close(); });
+  previaFicha.addEventListener('close', function () { if (ficha.open) $('ficha-previa-abrir').focus(); });
   $('ficha-cerrar').addEventListener('click', cancelarFicha);
   ficha.addEventListener('cancel', function (e) { e.preventDefault(); cancelarFicha(); });
   ficha.addEventListener('click', function (e) { if (e.target === ficha) cancelarFicha(); });
@@ -1118,6 +1320,7 @@
     function acabar() {
       fotoTrabajando = false;
       if (borrador !== ficha0) return;
+      if (hechas) fotoVista = borrador.fotos.length - 1; // la recién añadida se ve en grande
       $('foto-estado').textContent = fallo || ((hechas === 1 ? 'Foto lista ✓' : hechas + ' fotos listas ✓') +
         (sobran ? ' Solo caben ' + C.LIMITES.fotos + '.' : ''));
       pintarFotos();
@@ -1158,13 +1361,15 @@
   }
   $('foto-camara').addEventListener('change', alElegirFoto);
   $('foto-galeria').addEventListener('change', alElegirFoto);
-  $('foto-caja').addEventListener('click', function () {
+  var conRaton = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  function hacerFoto() {
     if (borrador && borrador.fotos.length >= C.LIMITES.fotos) {
       $('foto-estado').textContent = 'Ya hay ' + C.LIMITES.fotos + ' fotos. Quita una para poner otra.';
       return;
     }
-    $('foto-camara').click();
-  });
+    $(conRaton ? 'foto-galeria' : 'foto-camara').click();
+  }
+  $('foto-caja').addEventListener('click', hacerFoto);
   $('foto-elegir').addEventListener('click', function () { $('foto-galeria').click(); });
   // «Destacar en portada»: solo uno a la vez. En un producto nuevo se aplica al añadirlo
   $('f-portada').addEventListener('change', function () {
@@ -1182,24 +1387,33 @@
       pintarPortadaPanel();
     });
   });
-  $('fotos-lista').addEventListener('click', function (e) {
+  // Miniaturas («ver» y «+»), «Hacer principal» y «Quitar» de la foto grande
+  $('fotos').addEventListener('click', function (e) {
     var b = e.target.closest('[data-accion]');
     if (!b || !borrador) return;
+    if (b.dataset.accion === 'anadir') { hacerFoto(); return; }
     var i = parseInt(b.dataset.foto, 10);
     var foto = borrador.fotos[i];
     if (!foto) return;
+    if (b.dataset.accion === 'ver') {
+      fotoVista = i;
+      pintarFotos(true);
+      return;
+    }
     if (b.dataset.accion === 'principal') {
       borrador.fotos.splice(i, 1);
       borrador.fotos.unshift(foto);
+      fotoVista = 0;
       $('foto-estado').textContent = 'Foto principal cambiada ✓';
       guardarEdicion();
-      pintarFotos({ i: 1, accion: 'principal' });
+      pintarFotos(true);
     } else {
       borrador.fotos.splice(i, 1);
       $('foto-estado').textContent = '';
       // Primero se guarda el producto sin ella; el archivo se borra del bucket pasado el «Deshacer»
       guardarEdicion();
-      pintarFotos({ i: Math.min(i, borrador.fotos.length - 1), accion: 'quitar' });
+      fotoVista = Math.max(0, Math.min(i, borrador.fotos.length - 1));
+      pintarFotos(true);
       borrarLuego(foto);
       deshacerQuitarFoto(borrador.id, esNuevo, foto, i);
     }
@@ -1217,7 +1431,8 @@
             noBorrar(foto);
             borrador.fotos.splice(Math.min(i, borrador.fotos.length), 0, foto);
             guardarEdicion();
-            pintarFotos();
+            fotoVista = borrador.fotos.indexOf(foto); // se ve en grande la recuperada
+            pintarFotos(true);
             pintarPrevia();
             avisar('Foto recuperada');
           } else if (!eraNuevo) {
@@ -1371,6 +1586,14 @@
     var horas = C.leerHoras(tramo.horas);
     var cerrado = horas.length === 0;
     var li = el('li', 'tramo');
+    var pl = el('details', 'tramo__plegable');
+    var cab = el('summary', 'tramo__cab');
+    cab.appendChild(el('strong', 'tramo__resumen-dias', ''));
+    cab.appendChild(el('span', 'tramo__resumen-horas', ''));
+    pl.appendChild(cab);
+    var cuerpo = el('div', 'tramo__cuerpo');
+    pl.appendChild(cuerpo);
+    li.appendChild(pl);
 
     var fs = el('fieldset', 'tramo__dias');
     fs.appendChild(el('legend', 'campo__etiqueta', 'Días'));
@@ -1389,9 +1612,9 @@
       fila.appendChild(l);
     });
     fs.appendChild(fila);
-    li.appendChild(fs);
+    cuerpo.appendChild(fs);
 
-    li.appendChild(casilla('Cerrado esos días', 'tramo__cerrado', cerrado));
+    cuerpo.appendChild(casilla('Cerrado esos días', 'tramo__cerrado', cerrado));
 
     var abierto = el('div', 'tramo__abierto');
     var t1 = horas[0] || [600, 810];
@@ -1409,12 +1632,17 @@
     turno2.hidden = horas.length < 2;
     abierto.appendChild(turno2);
     abierto.hidden = cerrado;
-    li.appendChild(abierto);
+    cuerpo.appendChild(abierto);
 
-    li.appendChild(el('p', 'tramo__error', ''));
+    cuerpo.appendChild(el('p', 'tramo__error', ''));
+    cuerpo.appendChild(el('p', 'tramo__aviso', ''));
+    // Lo guardado no se entiende (p. ej. «10-13», sin minutos o cruzando la medianoche): se avisa
+    var horasTexto = String(tramo.horas || '').trim();
+    var entendido = /^cerrado$/i.test(horasTexto) || (horas.length && C.componerHoras(horas) === horasTexto.replace(/\s*-\s*/g, '–'));
+    if ((horasTexto && !entendido) || (String(tramo.dias || '').trim() && !dias.length)) li.dataset.formatoRaro = '1';
     var quitar = el('button', 'boton-texto tramo__quitar', 'Quitar este horario');
     quitar.type = 'button';
-    li.appendChild(quitar);
+    cuerpo.appendChild(quitar);
     return li;
   }
 
@@ -1427,6 +1655,7 @@
   function leerTramos() {
     var salida = [];
     var hayError = false;
+    var vistos = {};
     Array.prototype.forEach.call($('tramos').children, function (li) {
       var dias = Array.prototype.filter.call(li.querySelectorAll('.dia input'), function (c) { return c.checked; })
         .map(function (c) { return parseInt(c.value, 10); });
@@ -1439,16 +1668,31 @@
       var a2 = minutos(li.querySelector('.t2-abre input').value);
       var c2 = minutos(li.querySelector('.t2-cierra input').value);
       var error = '';
+      // Aviso suave (no impide guardar): formato que la web no entiende o un día que ya está en otro horario
+      var repetidos = dias.filter(function (d) { return vistos[d]; });
+      dias.forEach(function (d) { vistos[d] = true; });
+      var aviso = li.dataset.formatoRaro && !li.dataset.tocado
+        ? 'La web no podrá decir si está abierto con este formato; usa 10:00–13:30.'
+        : repetidos.length ? 'Este día ya está en otro horario: la web no podrá decir bien si está abierto.' : '';
+      li.querySelector('.tramo__aviso').textContent = aviso;
       if (!dias.length) error = 'Marca al menos un día.';
       else if (cerrado) error = '';
       else if (a1 === null || c1 === null || a1 >= c1) error = 'La hora de cerrar tiene que ser después de la de abrir.';
       else if (tarde && (a2 === null || c2 === null || a2 >= c2)) error = 'Por la tarde, la hora de cerrar tiene que ser después de la de abrir.';
       else if (tarde && a2 < c1) error = 'La tarde tiene que empezar después de cerrar a mediodía.';
       li.querySelector('.tramo__error').textContent = error;
-      if (error) { hayError = true; return; }
-      if (cerrado) { salida.push({ dias: C.componerDias(dias), horas: 'Cerrado' }); return; }
+      // Resumen de la tarjeta; con un error se abre y lo dice
+      li.querySelector('.tramo__resumen-dias').textContent = dias.length ? C.componerDias(dias) : 'Sin días';
+      if (error) li.querySelector('.tramo__plegable').open = true;
+      if (error) { hayError = true; li.querySelector('.tramo__resumen-horas').textContent = '⚠ Revisar'; return; }
+      if (cerrado) {
+        li.querySelector('.tramo__resumen-horas').textContent = 'Cerrado';
+        salida.push({ dias: C.componerDias(dias), horas: 'Cerrado' });
+        return;
+      }
       var tramos = [[a1, c1]];
       if (tarde) tramos.push([a2, c2]);
+      li.querySelector('.tramo__resumen-horas').textContent = C.componerHoras(tramos);
       salida.push({ dias: C.componerDias(dias), horas: C.componerHoras(tramos) });
     });
     return { tramos: salida, hayError: hayError };
@@ -1471,17 +1715,20 @@
     if (respetarFoco && (ol.contains(document.activeElement) || ol.querySelector('.tramo__error:not(:empty)'))) return;
     ol.textContent = '';
     contenido.tienda.horario.forEach(function (t) { ol.appendChild(crearTramo(t)); });
+    leerTramos(); // rellena el resumen de cada tarjeta
     pintarPreviaHorario(contenido.tienda.horario);
   }
 
   var guardarHorario = conRetraso(function () {
     var r = leerTramos();
     pintarPreviaHorario(r.tramos);
+    pintarEstados();
     if (r.hayError) { avisarGuardado(false, 'Falta corregir el horario'); return; }
     guardadoForm(guardarAjustes(function (c) { c.tienda.horario = r.tramos; }));
   });
-  $('tramos').addEventListener('input', function () { pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
-  $('tramos').addEventListener('change', function () { pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
+  function tocarTramo(e) { var li = e.target.closest('.tramo'); if (li) li.dataset.tocado = '1'; }
+  $('tramos').addEventListener('input', function (e) { tocarTramo(e); pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
+  $('tramos').addEventListener('change', function (e) { tocarTramo(e); pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
   $('tramos').addEventListener('click', function (e) {
     var b = e.target.closest('.tramo__quitar');
     if (!b) return;
@@ -1495,7 +1742,10 @@
     if ($('tramos').children.length >= 7) { avisar('Como mucho, siete horarios distintos.', { error: true }); return; }
     var li = crearTramo({ dias: '', horas: '10:00–13:30' });
     $('tramos').appendChild(li);
+    li.querySelector('.tramo__plegable').open = true;
+    li.querySelector('.tramo__resumen-dias').textContent = 'Horario nuevo';
     li.querySelector('.tramo__error').textContent = 'Marca los días de este horario.';
+    pintarEstados();
     li.querySelector('.dia input').focus();
   });
 
@@ -1582,6 +1832,7 @@
     $('tienda-foto-img').hidden = false;
     $('tienda-foto-img').src = srcFoto(contenido.portada.foto);
     window.Escaparate.pintarPortada(contenido, $('portada-previa'));
+    pintarRecuentoTemporada();
   }
 
   // Fotos grandes del panel que no cargan (p. ej. borradas del bucket): la de la tienda vuelve a la de
@@ -1593,8 +1844,9 @@
     else img.hidden = true;
   });
   $('foto-img').addEventListener('error', function () {
+    if (!$('foto-img').getAttribute('src')) return;
     $('foto-img').hidden = true;
-    $('foto-vacia').hidden = false;
+    $('foto-rota').hidden = false;
   });
 
   function destacar(id) {
@@ -1638,6 +1890,295 @@
   $('tienda-foto-galeria').addEventListener('change', alElegirFotoTienda);
   $('tienda-foto-hacer').addEventListener('click', function () { $('tienda-foto-camara').click(); });
   $('tienda-foto-elegir').addEventListener('click', function () { $('tienda-foto-galeria').click(); });
+
+  // ---------- Temporada (banda de arriba y sección de sus productos) ----------
+
+  function radioDe(nombre) {
+    var r = document.querySelector('input[name="' + nombre + '"]:checked');
+    return r ? r.value : '';
+  }
+  function marcarRadio(nombre, valor) {
+    var r = document.querySelector('input[name="' + nombre + '"][value="' + valor + '"]');
+    if (r) r.checked = true;
+  }
+
+  // Lista recogida de productos con su interruptor «En la temporada», con buscador y «Solo los marcados»
+  function pintarTemporadaProductos() {
+    var ul = $('temporada-lista');
+    var foco = ul.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    var busca = C.sinTildes($('temporada-buscar').value.trim());
+    var solo = $('temporada-solo').checked;
+    var enWeb = contenido.productos.filter(function (p) { return p.estado !== 'vendido'; });
+    var marcados = enWeb.filter(function (p) { return p.enTemporada; }).length;
+    $('temporada-prod-cuenta').textContent = marcados + ' de ' + enWeb.length;
+    var lista = enWeb.filter(function (p) {
+      return (!solo || p.enTemporada || retenidosTemporada[p.id]) &&
+        (!busca || C.sinTildes(p.nombre).indexOf(busca) !== -1 || C.sinTildes(p.id) === busca);
+    });
+    ul.textContent = '';
+    lista.forEach(function (p) {
+      var li = el('li');
+      var l = el('label', 'interruptor tprod');
+      var mini = el('span', 'tprod__foto');
+      var f = C.fotoPrincipal(p);
+      if (f) {
+        var img = el('img');
+        img.src = srcFoto(f);
+        img.alt = '';
+        img.loading = 'lazy';
+        E.siFalla(img, function (i) { if (i.parentNode) i.parentNode.removeChild(i); });
+        mini.appendChild(img);
+      }
+      l.appendChild(mini);
+      var texto = el('span', 'interruptor__texto tprod__texto');
+      texto.appendChild(el('span', 'tprod__nombre', p.nombre));
+      texto.appendChild(el('span', 'tprod__precio', textoPrecio(p)));
+      l.appendChild(texto);
+      var c = el('input');
+      c.type = 'checkbox';
+      c.setAttribute('role', 'switch');
+      c.checked = !!p.enTemporada;
+      c.dataset.id = p.id;
+      l.appendChild(c);
+      li.appendChild(l);
+      ul.appendChild(li);
+      if (foco === p.id) c.focus();
+    });
+    $('temporada-lista-vacia').hidden = lista.length > 0;
+    $('temporada-lista-vacia').textContent = solo && !busca ? 'Aún no hay ninguno marcado.' : 'No hay productos con ese nombre.';
+  }
+  // Con «Solo los marcados», el que se apaga sigue en la lista (y con el foco) hasta cambiar el filtro o la búsqueda
+  var retenidosTemporada = {};
+  $('temporada-lista').addEventListener('change', function (e) {
+    var c = e.target.closest('input[data-id]');
+    var p = c && buscar(c.dataset.id);
+    if (!p) return;
+    if (!c.checked) retenidosTemporada[p.id] = true;
+    // Sin «disabled»: quitaría el foco del interruptor
+    ponerEnTemporada(p, c.checked).then(function () { pintarLista(); });
+  });
+  function soltarRetenidos() { retenidosTemporada = {}; pintarTemporadaProductos(); }
+  $('temporada-buscar').addEventListener('input', soltarRetenidos);
+  $('temporada-solo').addEventListener('change', soltarRetenidos);
+
+  function pintarRecuentoTemporada() {
+    var n = contenido.productos.filter(function (p) { return p.enTemporada && p.estado !== 'vendido'; }).length;
+    var texto = n === 1 ? '1 producto en la temporada' : n + ' productos en la temporada';
+    var t = contenido.temporada;
+    if (t.tipo !== 'ninguna' && !C.vigente(t.hasta)) texto += ' · Ya ha pasado la fecha: no sale en la web';
+    else if (!n && t.tipo !== 'ninguna') texto += ' · Márcalos en «Productos de la temporada», aquí abajo';
+    $('temporada-recuento').textContent = texto;
+    pintarTemporadaProductos();
+  }
+
+  function leerTemporada() {
+    return {
+      tipo: radioDe('temporada') || 'ninguna',
+      texto: $('temporada-texto').value.replace(/\s+/g, ' ').trim(),
+      hasta: C.fecha($('temporada-hasta').value)
+    };
+  }
+
+  function pintarPreviaTemporada() {
+    var t = leerTemporada();
+    var caja = $('temporada-previa');
+    caja.textContent = '';
+    $('temporada-texto').placeholder = t.tipo === 'ninguna' ? 'Elige antes una temporada' : C.TEMPORADAS[t.tipo].texto;
+    contar($('temporada-texto'), $('temporada-cuenta'), C.LIMITES.temporada);
+    if (t.tipo === 'ninguna') { caja.appendChild(el('p', 'bloque__ayuda', 'Sin temporada: no sale nada.')); return; }
+    var banda = el('div', 'banda-temporada tema--' + t.tipo);
+    var fila = el('p', 'banda-temporada__fila');
+    fila.appendChild(window.Escaparate.picto(t.tipo, 'banda-temporada__picto'));
+    fila.appendChild(el('span', 'banda-temporada__texto', t.texto || C.TEMPORADAS[t.tipo].texto));
+    banda.appendChild(fila);
+    caja.appendChild(banda);
+  }
+
+  function pintarTemporadaPanel(respetarFoco) {
+    var t = contenido.temporada;
+    var foco = respetarFoco ? document.activeElement : null;
+    if (!(foco && foco.name === 'temporada')) marcarRadio('temporada', t.tipo);
+    if (foco !== $('temporada-texto')) $('temporada-texto').value = t.texto;
+    if (foco !== $('temporada-hasta')) $('temporada-hasta').value = t.hasta;
+    errorCampo('temporada-hasta', '');
+    pintarPreviaTemporada();
+    pintarRecuentoTemporada();
+  }
+
+  function guardarTemporadaYa(aviso) {
+    var t = leerTemporada();
+    return guardarAjustes(function (c) { c.temporada = t; }).then(function (r) {
+      if (r.ok && aviso) avisar(t.tipo === 'ninguna' ? 'Temporada quitada' : 'Temporada: ' + C.TEMPORADAS[t.tipo].nombre);
+      // Si no se ha guardado, se vuelve a enseñar la que hay de verdad
+      if (!r.ok) pintarTemporadaPanel(false);
+      pintarRecuentoTemporada();
+      return r;
+    });
+  }
+  var guardarTemporadaTexto = conRetraso(function () { guardadoForm(guardarTemporadaYa(false)); });
+  $('temporada-tipos').addEventListener('change', function () { pintarPreviaTemporada(); guardarTemporadaYa(true); });
+  $('temporada-texto').addEventListener('input', function () { pintarPreviaTemporada(); guardarTemporadaTexto(); });
+  function alCambiarHastaTemporada() {
+    var v = $('temporada-hasta').value;
+    if (v && !C.fecha(v)) { errorCampo('temporada-hasta', 'Elige un día del calendario.'); return; }
+    errorCampo('temporada-hasta', '');
+    guardarTemporadaTexto();
+  }
+  $('temporada-hasta').addEventListener('change', alCambiarHastaTemporada);
+  $('temporada-hasta').addEventListener('input', alCambiarHastaTemporada);
+
+  // ---------- Anuncio destacado (sorteo, evento…) ----------
+
+  var MENSAJE_ENLACE = 'Pega el enlace de la publicación de Instagram, Facebook o TikTok, o de WhatsApp.';
+  var MENSAJE_BASES = 'Ese enlace no vale. Pega el de la publicación con las bases (Instagram, Facebook, TikTok o WhatsApp) o el de la página de las bases.';
+
+  // Lo que hay escrito, revisado. errores: los campos que hay que corregir (no se guarda nada hasta entonces)
+  function leerAnuncio() {
+    var errores = [];
+    var titulo = $('anuncio-titulo').value.replace(/\s+/g, ' ').trim();
+    var enlaceCrudo = $('anuncio-enlace').value.trim();
+    var basesCrudo = $('anuncio-bases').value.trim();
+    var enlace = C.enlaceAnuncio(enlaceCrudo);
+    var bases = C.enlaceBases(basesCrudo);
+    var activo = $('anuncio-activo').checked;
+    errorCampo('anuncio-enlace', enlaceCrudo && !enlace ? MENSAJE_ENLACE : '');
+    errorCampo('anuncio-bases', basesCrudo && !bases ? MENSAJE_BASES : '');
+    errorCampo('anuncio-titulo', activo && !titulo ? 'Escribe el título para poder enseñarlo.' : '');
+    if (enlaceCrudo && !enlace) errores.push('anuncio-enlace');
+    if (basesCrudo && !bases) errores.push('anuncio-bases');
+    if (activo && !titulo) errores.push('anuncio-titulo');
+    return {
+      errores: errores,
+      datos: {
+        activo: activo && !!titulo,
+        tipo: radioDe('anuncio-tipo') || 'sorteo',
+        titulo: titulo,
+        texto: $('anuncio-texto').value.replace(/\s+/g, ' ').trim(),
+        foto: contenido.anuncio.foto,
+        boton: { texto: $('anuncio-boton').value.replace(/\s+/g, ' ').trim(), enlace: enlace },
+        hasta: C.fecha($('anuncio-hasta').value),
+        bases: bases
+      }
+    };
+  }
+
+  function pintarPreviaAnuncio() {
+    var r = leerAnuncio();
+    var a = r.datos;
+    $('anuncio-nota-sorteo').hidden = a.tipo !== 'sorteo';
+    contar($('anuncio-titulo'), $('anuncio-titulo-cuenta'), C.LIMITES.anuncioTitulo);
+    contar($('anuncio-texto'), $('anuncio-texto-cuenta'), C.LIMITES.anuncioTexto);
+    var caja = $('anuncio-previa');
+    caja.textContent = '';
+    if (!a.titulo) { caja.appendChild(el('p', 'bloque__ayuda', 'Escribe el título para verlo.')); return; }
+    var t = C.temporadaActiva(contenido);
+    var tarjeta = window.Escaparate.crearAnuncio(a, t ? t.tipo : 'siestta');
+    tarjeta.removeAttribute('id');
+    tarjeta.removeAttribute('aria-labelledby');
+    var h = tarjeta.querySelector('#anuncio-titulo');
+    if (h) h.removeAttribute('id');
+    caja.appendChild(tarjeta);
+    if (!a.activo) caja.appendChild(el('p', 'bloque__ayuda', 'Ahora no sale en la web: enciende «Enseñarlo en la web».'));
+  }
+
+  function pintarAnuncioPanel(respetarFoco) {
+    var a = contenido.anuncio;
+    var foco = respetarFoco ? document.activeElement : null;
+    function poner(id, valor) { if ($(id) !== foco) $(id).value = valor; }
+    $('anuncio-activo').checked = a.activo;
+    if (!(foco && foco.name === 'anuncio-tipo')) marcarRadio('anuncio-tipo', a.tipo);
+    poner('anuncio-titulo', a.titulo);
+    poner('anuncio-texto', a.texto);
+    poner('anuncio-boton', a.boton.texto);
+    poner('anuncio-enlace', a.boton.enlace);
+    poner('anuncio-hasta', a.hasta);
+    poner('anuncio-bases', a.bases);
+    pintarFotoAnuncio();
+  }
+
+  // Solo la foto (sin tocar lo que se esté escribiendo en los demás campos, que puede estar sin guardar)
+  function pintarFotoAnuncio() {
+    var foto = contenido.anuncio.foto;
+    var img = $('anuncio-foto-img');
+    img.hidden = !foto;
+    if (foto) img.src = srcFoto(foto); else img.removeAttribute('src');
+    $('anuncio-foto-quitar').hidden = !foto;
+    pintarPreviaAnuncio();
+  }
+
+  function guardarAnuncioYa(aviso) {
+    var r = leerAnuncio();
+    if (r.errores.length) {
+      var mal = $(r.errores[0]);
+      avisarGuardado(false, 'Falta corregir el anuncio');
+      abrirHasta(mal);
+      if (aviso) { irA(mal); avisar('Falta corregir un dato en ' + dondeEsta(mal) + '.', { error: true }); }
+      return Promise.resolve({ ok: false });
+    }
+    return guardarAjustes(function (c) {
+      var foto = c.anuncio.foto;
+      c.anuncio = r.datos;
+      c.anuncio.foto = foto;
+    }).then(function (x) {
+      if (x.ok && aviso) avisar(aviso);
+      if (!x.ok) $('anuncio-activo').checked = contenido.anuncio.activo;
+      pintarPreviaAnuncio();
+      return x;
+    });
+  }
+  var guardarAnuncio = conRetraso(function () { guardadoForm(guardarAnuncioYa(null)); });
+  $('anuncio-activo').addEventListener('change', function () {
+    var si = $('anuncio-activo').checked;
+    if (si && !$('anuncio-titulo').value.trim()) {
+      $('anuncio-activo').checked = false;
+      errorCampo('anuncio-titulo', 'Escribe el título para poder enseñarlo.');
+      $('anuncio-titulo').focus();
+      return;
+    }
+    guardarAnuncioYa(si ? 'Anuncio en la web' : 'Anuncio quitado de la web');
+  });
+  $('anuncio-tipos').addEventListener('change', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
+  ['anuncio-titulo', 'anuncio-texto', 'anuncio-boton', 'anuncio-enlace', 'anuncio-hasta', 'anuncio-bases'].forEach(function (id) {
+    $(id).addEventListener('input', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
+  });
+  $('anuncio-hasta').addEventListener('change', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
+
+  // Foto del anuncio: en portada/{uuid}.jpg (como la de la tienda); la de antes se borra si nadie la usa
+  function alElegirFotoAnuncio(e) {
+    var archivo = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!archivo) return;
+    $('anuncio-foto-estado').textContent = 'Subiendo la foto…';
+    var antes = contenido.anuncio.foto;
+    prepararFoto(archivo).then(function (blob) { return subirFoto(blob, ''); }).then(function (ruta) {
+      return guardarAjustes(function (c) { c.anuncio.foto = ruta; }).then(function (r) {
+        if (r.ok) {
+          $('anuncio-foto-estado').textContent = 'Foto lista ✓';
+          if (antes && antes !== ruta && !enUso(antes)) borrarDelBucket([antes]);
+        } else {
+          $('anuncio-foto-estado').textContent = 'No se ha guardado la foto. Vuelve a intentarlo.';
+          if (!enUso(ruta)) borrarDelBucket([ruta]);
+        }
+        pintarFotoAnuncio();
+      });
+    }).catch(function (err) {
+      $('anuncio-foto-estado').textContent = textoFalloFoto(err);
+    });
+  }
+  $('anuncio-foto-camara').addEventListener('change', alElegirFotoAnuncio);
+  $('anuncio-foto-galeria').addEventListener('change', alElegirFotoAnuncio);
+  $('anuncio-foto-hacer').addEventListener('click', function () { $('anuncio-foto-camara').click(); });
+  $('anuncio-foto-elegir').addEventListener('click', function () { $('anuncio-foto-galeria').click(); });
+  $('anuncio-foto-quitar').addEventListener('click', function () {
+    var antes = contenido.anuncio.foto;
+    guardarAjustes(function (c) { c.anuncio.foto = ''; }).then(function (r) {
+      if (r.ok) { avisar('Foto quitada'); borrarLuego(antes); }
+      $('anuncio-foto-estado').textContent = '';
+      pintarFotoAnuncio();
+      $('anuncio-foto-elegir').focus();
+    });
+  });
+  $('anuncio-foto-img').addEventListener('error', function () { $('anuncio-foto-img').hidden = true; });
 
   // ---------- Contacto (cada campo se guarda por separado) ----------
 
@@ -1691,8 +2232,25 @@
 
   function textoNota(n) { return n === null ? '' : String(n).replace('.', ','); }
 
+  function resumirOpinion(li) {
+    var t = li.querySelector('.opinion__texto').value.replace(/\s+/g, ' ').trim();
+    var a = li.querySelector('.opinion__autor').value.replace(/\s+/g, ' ').trim();
+    li.querySelector('.opinion__resumen-texto').textContent = t ? '«' + t + '»' : 'Opinión sin texto (no sale)';
+    li.querySelector('.opinion__resumen-autor').textContent = a;
+  }
   function crearOpinion(o) {
     var li = el('li', 'opinion');
+    var pl = el('details', 'opinion__plegable');
+    var cab = el('summary', 'opinion__cab');
+    var res = el('span', 'opinion__resumen');
+    res.appendChild(el('span', 'opinion__resumen-texto', ''));
+    res.appendChild(el('span', 'opinion__resumen-autor', ''));
+    cab.appendChild(res);
+    cab.appendChild(el('span', 'opinion__editar', 'Editar'));
+    pl.appendChild(cab);
+    var cuerpo = el('div', 'opinion__cuerpo');
+    pl.appendChild(cuerpo);
+    li.appendChild(pl);
     var l1 = el('label', 'campo');
     l1.appendChild(el('span', 'campo__etiqueta', 'Lo que dice'));
     var t = el('textarea', 'opinion__texto');
@@ -1703,7 +2261,7 @@
     var cuenta = el('span', 'campo__cuenta', '');
     l1.appendChild(cuenta);
     contar(t, cuenta, C.LIMITES.opinion);
-    li.appendChild(l1);
+    cuerpo.appendChild(l1);
     var l2 = el('label', 'campo');
     l2.appendChild(el('span', 'campo__etiqueta', 'Nombre de quien la escribió'));
     var a = el('input', 'opinion__autor');
@@ -1712,10 +2270,11 @@
     a.autocomplete = 'off';
     a.value = o.autor;
     l2.appendChild(a);
-    li.appendChild(l2);
+    cuerpo.appendChild(l2);
     var quitar = el('button', 'boton-texto opinion__quitar', 'Quitar esta opinión');
     quitar.type = 'button';
-    li.appendChild(quitar);
+    cuerpo.appendChild(quitar);
+    resumirOpinion(li);
     return li;
   }
 
@@ -1791,6 +2350,8 @@
   $('op-lista').addEventListener('input', function (e) {
     var t = e.target.closest('.opinion__texto');
     if (t) contar(t, t.parentNode.querySelector('.campo__cuenta'), C.LIMITES.opinion);
+    var li = e.target.closest('.opinion');
+    if (li) resumirOpinion(li);
     guardarLista();
   });
   $('op-lista').addEventListener('click', function (e) {
@@ -1808,6 +2369,8 @@
     }
     var li = crearOpinion({ texto: '', autor: '' });
     $('op-lista').appendChild(li);
+    li.querySelector('.opinion__plegable').open = true;
+    pintarEstados();
     li.querySelector('.opinion__texto').focus();
   });
 
@@ -1892,7 +2455,12 @@
     validarTelefono();
     validarWhatsapp();
     pintarConfianza(respetarFoco);
+    pintarTemporadaPanel(respetarFoco);
+    pintarAnuncioPanel(respetarFoco);
+    pintarEstados();
   }
+  $('panel-contenido').addEventListener('input', pintarEstados);
+  $('panel-contenido').addEventListener('change', pintarEstados);
 
   // ---------- Lo que cambia otra persona: se trae del servidor ----------
 
@@ -1969,8 +2537,33 @@
 
   function pintarSesion() {
     var s = S.actual();
-    $('sesion-quien').textContent = s && s.usuario.email ? 'Has entrado como ' + s.usuario.email : '';
+    var correo = s && s.usuario.email ? s.usuario.email : '';
+    var nombre = s && s.usuario.nombre ? s.usuario.nombre : '';
+    // La inicial: del nombre si lo hay; si no, del correo (la primera letra o cifra)
+    var m = /[\p{L}\p{N}]/u.exec(nombre || correo);
+    $('cuenta-inicial').textContent = m ? m[0].toLocaleUpperCase('es') : '?';
+    $('cuenta-boton').setAttribute('aria-label', correo ? 'Cuenta de ' + correo : 'Cuenta');
+    $('cuenta-correo').textContent = correo;
+    $('cuenta-correo').title = correo;
   }
+
+  // Menú de la cuenta: se abre con la burbuja; se cierra con Esc, tocando fuera o al elegir algo
+  function abrirMenuCuenta(abrir, volverFoco) {
+    var menu = $('cuenta-menu');
+    menu.hidden = !abrir;
+    $('cuenta-boton').setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (abrir) $('salir').focus();
+    else if (volverFoco) $('cuenta-boton').focus();
+  }
+  $('cuenta-boton').addEventListener('click', function () { abrirMenuCuenta($('cuenta-menu').hidden, true); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('cuenta-menu').hidden) { e.preventDefault(); abrirMenuCuenta(false, true); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!$('cuenta-menu').hidden && !e.target.closest('.cuenta')) abrirMenuCuenta(false, false);
+  });
+  // «Cerrar sesión» cierra el menú antes de comprobar lo pendiente (que puede llevar a otra pestaña y campo)
+  $('salir').addEventListener('click', function () { abrirMenuCuenta(false, false); });
 
   // modo: 'inicio' | 'caducada' | 'salida' (entrar) · 'olvido' (pedir el enlace) · 'nueva' (contraseña nueva)
   var TEXTOS_ACCESO = {
@@ -2180,9 +2773,15 @@
     ficheo.then(function (r) {
       return enCola(function () {}).then(function () { return r; });
     }).then(function (r) {
-      if (fallos > antes || (r && r.ok === false) || pendientesForm > 0 || document.querySelector('main [aria-invalid="true"], main .tramo__error:not(:empty)')) {
+      var mal = primerError();
+      if (fallos > antes || (r && r.ok === false) || pendientesForm > 0 || mal) {
         $('salir').disabled = false;
-        avisar('No se ha podido guardar todo: revisa el aviso o lo marcado en rojo antes de cerrar sesión.', { error: true });
+        if (mal) {
+          irA(mal);
+          avisar('Falta corregir un dato en ' + dondeEsta(mal) + '. Corrígelo antes de cerrar sesión.', { error: true });
+        } else {
+          avisar('No se ha podido guardar todo: revisa el aviso antes de cerrar sesión.', { error: true });
+        }
         return;
       }
       return enCola(function () { return S.salir(); }).then(function () { window.location.reload(); });
