@@ -410,16 +410,20 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 
 /* ---------- Opiniones ---------- */
 .opiniones { background: var(--gris); }
-.opiniones__fila { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px 56px; align-items: start; }
-.opiniones__cifra { font: 900 5.6rem/.9 var(--letra-titulo); letter-spacing: -.04em; }
-.estrellas { position: relative; width: 140px; height: 28px; margin-top: 12px; }
+.seccion.opiniones { padding: 28px 0; }
+/* La nota va de cabecera de las opiniones, en una línea encima de las tarjetas (así se lee como un solo bloque) */
+.opiniones__fila { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.opiniones__nota { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.opiniones__nota .antetitulo { flex-basis: 100%; margin: 0; }
+.opiniones__nota .enlace-flecha { margin-left: auto; }
+.opiniones__cifra { font: 900 2.6rem/.9 var(--letra-titulo); letter-spacing: -.04em; }
+.estrellas { position: relative; width: 110px; height: 22px; }
 .estrellas__fila { position: absolute; inset: 0 auto 0 0; width: 100%; overflow: hidden; }
-.estrellas__fila svg { width: 140px; height: 28px; max-width: none; fill: var(--blanco); stroke: var(--tinta); stroke-width: 1.2; stroke-linejoin: round; }
+.estrellas__fila svg { width: 110px; height: 22px; max-width: none; fill: var(--blanco); stroke: var(--tinta); stroke-width: 1.2; stroke-linejoin: round; }
 .estrellas__fila--llena { width: 88%; } /* 4,4 de 5; main.js la ajusta a la nota */
 .estrellas__fila--llena svg { fill: var(--amarillo); }
 .sprite { position: absolute; }
-.opiniones__total { margin-top: 8px; font-weight: 700; font-size: .95rem; }
-.opiniones__nota .enlace-flecha { margin-top: 4px; }
+.opiniones__total { font-weight: 700; font-size: .95rem; }
 .citas { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .cita { display: flex; flex-direction: column; padding: 22px; background: var(--blanco); border-radius: var(--radio); min-width: 0; }
 .cita blockquote { margin: 0; font-size: 1.02rem; font-weight: 500; line-height: 1.5; color: var(--tinta); }
@@ -531,7 +535,7 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .productos { gap: 16px; }
   .pasos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 0; }
   .pasos li:nth-child(3) { padding-left: 0; border-left: 0; }
-  .opiniones__fila { grid-template-columns: 1fr; gap: 28px; }
+  .opiniones__fila { gap: 12px; }
   .citas { gap: 12px; }
   .llamada { padding: 24px; }
 }
@@ -612,11 +616,8 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .pasos strong { font-size: 1.02rem; }
 
   /* Nota en una fila y opiniones en carrusel horizontal (dentro de su caja, sin mover la página) */
-  .opiniones__nota { display: grid; grid-template-columns: auto 1fr; column-gap: 16px; align-items: center; }
-  .opiniones__nota .antetitulo, .opiniones__nota .enlace-flecha { grid-column: 1 / -1; }
-  .opiniones__cifra { grid-row: span 2; font-size: 4rem; }
-  .estrellas { margin-top: 0; }
-  .opiniones__total { margin-top: 0; }
+  .opiniones__cifra { font-size: 2.2rem; }
+  .opiniones__nota .enlace-flecha { margin-left: 0; flex-basis: 100%; }
   .citas {
     display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
     margin-inline: -16px; padding: 0 16px 6px; scrollbar-width: thin;
@@ -897,7 +898,7 @@ html.con-ficha { overflow: hidden; }   /* la página no se mueve detrás de la f
 
 /* =====================================================================================================
    Opiniones en carrusel (js/main.js): 1 a la vez en el móvil y 2 desde 640 px (con 3, se ven 2 y avanza de
-   una en una), todas de la misma altura. Flechas a los lados; puntos y pausa juntos debajo.
+   una en una), todas de la misma altura. Flechas a los lados; puntos debajo.
    Gira sola cada ~6 s salvo con «reducir movimiento».
    ===================================================================================================== */
 .citas-carrusel { min-width: 0; }
@@ -912,15 +913,15 @@ html.con-ficha { overflow: hidden; }   /* la página no se mueve detrás de la f
 .citas-carrusel.es-carrusel .cita { flex: none; scroll-snap-align: start; }
 @media (prefers-reduced-motion: no-preference) { .citas-carrusel.es-carrusel .citas { scroll-behavior: smooth; } }
 /* Cada opinión: comilla (una sola), texto y firma abajo */
-.cita { padding: 22px 22px 18px; border-top: 4px solid var(--s-marca, var(--rojo)); }
-.cita blockquote { font-size: 1.02rem; font-weight: 500; line-height: 1.5; }
+.cita { padding: 14px 16px 12px; border-top: 4px solid var(--s-marca, var(--rojo)); }
+.cita blockquote { font-size: .95rem; font-weight: 500; line-height: 1.45; }
 .cita blockquote::before {
-  content: "“"; display: block; height: .5em; margin-bottom: 8px;
-  font: 900 3rem/1 var(--letra-titulo); color: var(--s-marca, var(--rojo));
+  content: "“"; display: block; height: .5em; margin-bottom: 4px;
+  font: 900 2.2rem/1 var(--letra-titulo); color: var(--s-marca, var(--rojo));
 }
-.cita__firma { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 16px; }
+.cita__firma { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 10px; }
 .cita__inicial {
-  display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 50%;
   background: var(--s-marca, var(--rojo)); color: #fff; font: 800 1rem/1 var(--letra-titulo);
 }
 .cita__datos { display: grid; min-width: 0; line-height: 1.25; }
@@ -940,24 +941,25 @@ html.con-ficha { overflow: hidden; }   /* la página no se mueve detrás de la f
 .citas-carrusel__boton svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .citas-carrusel__boton:hover { background: var(--tinta); color: #fff; }
 .citas-carrusel__flecha { position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); box-shadow: 0 4px 12px rgb(26 20 20 / .15); }
-.citas-carrusel__flecha--ant { left: -22px; }
-.citas-carrusel__flecha--sig { right: -22px; }
-@media (max-width: 1100px) { .citas-carrusel__flecha--ant { left: -10px; } .citas-carrusel__flecha--sig { right: -10px; } }
+/* Escritorio ancho: fuera de las tarjetas, en el margen; más estrecho, sobre el borde con el texto apartado */
+.citas-carrusel__flecha--ant { left: -58px; }
+.citas-carrusel__flecha--sig { right: -58px; }
+@media (max-width: 1340px) {
+  .citas-carrusel__flecha--ant { left: -10px; } .citas-carrusel__flecha--sig { right: -10px; }
+  .citas-carrusel.es-carrusel .cita { padding-inline: 40px; }
+}
 /* Móvil: las flechas van sobre el borde de la tarjeta; el texto deja su sitio para que no lo tapen */
 @media (max-width: 639px) {
-  .citas-carrusel.es-carrusel .cita { padding-inline: 44px; }
-  .citas-carrusel__flecha { width: 40px; height: 40px; }
-  .citas-carrusel__flecha--ant { left: -4px; }
-  .citas-carrusel__flecha--sig { right: -4px; }
+  .citas-carrusel.es-carrusel .cita { padding-inline: 46px; }
+  .citas-carrusel__flecha { width: 44px; height: 44px; }
+  .citas-carrusel__flecha--ant { left: -6px; }
+  .citas-carrusel__flecha--sig { right: -6px; }
 }
-/* Debajo: puntos y pausa, juntos y centrados */
+/* «Ver todas en Google →»: la flecha no se separa del texto */
+#opiniones-enlace { white-space: nowrap; }
+/* Debajo: los puntos, centrados */
 .citas-carrusel__controles { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; }
 .citas-carrusel__controles[hidden] { display: none; }
-.citas-carrusel__pausa { width: 40px; height: 40px; border-width: 2px; }
-.citas-carrusel__pausa .ico-seguir { display: none; }
-.citas-carrusel__pausa[aria-pressed="true"] .ico-pausa { display: none; }
-.citas-carrusel__pausa[aria-pressed="true"] .ico-seguir { display: block; fill: currentColor; stroke: none; }
-.citas-carrusel__pausa[hidden] { display: none; }
 .citas-carrusel__puntos { display: flex; flex-wrap: wrap; justify-content: center; }
 .citas-carrusel__punto { display: grid; place-items: center; width: 32px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
 .citas-carrusel__punto::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--tinta); background: transparent; }
@@ -1050,4 +1052,174 @@ html.skin.tema--feria .tira-expo .boton--amarillo { background: var(--amarillo);
 }
 @media (prefers-reduced-motion: reduce) {
   .producto, .producto__cuerpo, .producto__foto .pastilla, .producto__sello { transition: none; }
+}
+
+/* =====================================================================================================
+   DECORACIÓN DE TEMPORADA (portada, banda de arriba y tarjetas). Solo con «skin tema--…» en <html>.
+   Dibujos propios en SVG (index.html), aria-hidden y sin recibir toques. Se anima solo transform y opacity;
+   las animaciones se paran fuera de la vista (clase «deco-quieta», js/escaparate.js) y con «reducir
+   movimiento» (los objetos se quedan quietos; la nieve y el confeti no salen). Nunca encima del texto,
+   los precios ni los botones: arriba (tira) y sobre la parte alta y derecha de la foto.
+   ===================================================================================================== */
+.deco { display: none; pointer-events: none; }
+.deco > * { display: none; }
+html.skin .deco { display: block; }
+html.skin.tema--navidad .deco .deco-navidad,
+html.skin.tema--black-friday .deco .deco-black-friday,
+html.skin.tema--rebajas .deco .deco-rebajas,
+html.skin.tema--feria .deco .deco-feria { display: block; }
+
+html.skin .portada { position: relative; overflow: hidden; }
+html.skin .portada__fila { position: relative; z-index: 1; }
+/* Sitio arriba para la tira (espumillón / banderines) */
+html.skin .portada__texto { padding-top: 86px; }
+
+/* Capa de fondo (detrás del texto): nieve en Navidad, confeti en Feria */
+.deco-fondo { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.deco-fondo .copo { position: absolute; top: -12px; display: none; border-radius: 50%; will-change: transform; }
+html.skin.tema--navidad .deco-fondo .copo,
+html.skin.tema--feria .deco-fondo .copo { display: block; }
+html.skin.tema--navidad .copo { width: 7px; height: 7px; background: rgb(255 255 255 / .55); animation: caer 14s linear infinite; }
+html.skin.tema--feria .copo { width: 8px; height: 12px; border-radius: 2px; animation: caer 11s linear infinite, girar-confeti 3s linear infinite; }
+html.skin.tema--feria .copo:nth-child(3n) { background: rgb(196 32 50 / .55); }
+html.skin.tema--feria .copo:nth-child(3n+1) { background: rgb(26 111 176 / .5); }
+html.skin.tema--feria .copo:nth-child(3n+2) { background: rgb(46 155 72 / .5); }
+.copo:nth-child(1) { left: 4%; animation-delay: 0s; }
+.copo:nth-child(2) { left: 13%; animation-delay: -3s; width: 5px; height: 5px; }
+.copo:nth-child(3) { left: 22%; animation-delay: -7s; }
+.copo:nth-child(4) { left: 31%; animation-delay: -10s; width: 4px; height: 4px; }
+.copo:nth-child(5) { left: 40%; animation-delay: -2s; }
+.copo:nth-child(6) { left: 49%; animation-delay: -12s; width: 5px; height: 5px; }
+.copo:nth-child(7) { left: 58%; animation-delay: -5s; }
+.copo:nth-child(8) { left: 72%; animation-delay: -9s; width: 4px; height: 4px; }
+.copo:nth-child(9) { left: 84%; animation-delay: -1s; }
+.copo:nth-child(10) { left: 94%; animation-delay: -6s; width: 5px; height: 5px; }
+@keyframes caer { from { transform: translate3d(0, -20px, 0); } to { transform: translate3d(24px, 560px, 0); } }
+@keyframes girar-confeti { to { rotate: 360deg; } }
+
+/* Tira de arriba, a todo el ancho */
+.deco-tira { position: absolute; left: 0; right: 0; top: 0; height: 80px; z-index: 2; }
+.deco-tira svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+/* Navidad: espumillón dorado con brillo que corre */
+.espumillon { animation: entrar-arriba .9s ease-out both; }
+.espumillon__base { fill: none; stroke: #d9b65d; stroke-width: 9; stroke-linecap: round; }
+.espumillon__brillo { fill: none; stroke: #fff6d6; stroke-width: 3; stroke-dasharray: 2 14; stroke-linecap: round; animation: brillar-espumillon 4s linear infinite; }
+@keyframes brillar-espumillon { to { stroke-dashoffset: -160; } }
+/* Feria: banderines con los colores de la tienda que ondean un poco */
+.banderines { height: 70px; animation: entrar-arriba .9s ease-out both; }
+.banderines__cuerda { fill: none; stroke: #1a1414; stroke-width: 2; }
+.banderines__fila path { transform-box: fill-box; transform-origin: 50% 0; animation: ondear 2.6s ease-in-out infinite alternate; }
+.banderines__fila path:nth-child(2n) { animation-delay: -1.3s; }
+.banderines .b1 { fill: #c42032; } .banderines .b2 { fill: #1a6fb0; } .banderines .b3 { fill: #2e9b48; } .banderines .b4 { fill: #fff; stroke: #1a1414; stroke-width: 1.5; }
+@keyframes ondear { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+/* Rebajas: cinta diagonal en la esquina de arriba a la derecha */
+.cinta-rebajas {
+  position: absolute; top: 34px; right: -70px; width: 320px; padding: 8px 0; transform: rotate(35deg);
+  background: #fff; color: #7d1220; text-align: center; box-shadow: 0 6px 16px rgb(0 0 0 / .25);
+  font: 900 1.05rem/1 var(--letra-titulo); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+  animation: entrar-cinta .8s cubic-bezier(.3, 1.5, .5, 1) both;
+}
+@keyframes entrar-cinta { from { transform: rotate(35deg) translateY(-80px); opacity: 0; } to { transform: rotate(35deg); opacity: 1; } }
+@keyframes entrar-arriba { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Sobre la foto: arriba y a la derecha (la tarjeta del precio está abajo a la izquierda) */
+.deco-foto { position: absolute; inset: 0; z-index: 3; overflow: hidden; }
+.deco-foto svg { position: absolute; top: 0; }
+/* Navidad: bolas de distintos tamaños que se balancean */
+.bola { transform-origin: 50% 0; animation: balanceo 4s ease-in-out infinite alternate, entrar-arriba .9s ease-out both; }
+.bola--1 { right: 30%; width: 70px; }
+.bola--2 { right: 15%; width: 58px; animation-delay: -1.5s, .15s; }
+.bola--3 { right: 3%; width: 80px; animation-delay: -2.6s, .3s; }
+.bola__hilo { stroke: #d9b65d; stroke-width: 2; }
+.bola__tapa { fill: #d9b65d; }
+.bola__cuerpo { stroke: rgb(0 0 0 / .15); stroke-width: 1; }
+.bola--roja { fill: #c42032; } .bola--oro { fill: #e6c977; } .bola--blanca { fill: #f4f2ef; }
+.bola__brillo { fill: none; stroke: rgb(255 255 255 / .8); stroke-width: 3; stroke-linecap: round; }
+.estrella-navidad { top: 70px !important; right: 46%; width: 46px; fill: #ffd96a; filter: drop-shadow(0 0 6px rgb(255 217 106 / .9)); animation: centellear 3.2s ease-in-out infinite; }
+@keyframes balanceo { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+@keyframes centellear { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.85); } }
+/* Black Friday: etiquetas de precio colgando */
+.etiqueta-colgada { transform-origin: 50% 0; animation: balanceo 3.4s ease-in-out infinite alternate, entrar-arriba .8s ease-out both; }
+.etiqueta-colgada--1 { right: 32%; width: 92px; }
+.etiqueta-colgada--2 { right: 16%; width: 84px; animation-delay: -1.2s, .15s; }
+.etiqueta-colgada--3 { right: 3%; width: 92px; animation-delay: -2.1s, .3s; }
+.etiqueta__hilo { stroke: #ffd400; stroke-width: 2; }
+.etiqueta__cuerpo { fill: #ffd400; stroke: #111; stroke-width: 2; }
+.etiqueta__agujero { fill: #111; }
+.etiqueta__texto { fill: #111; font: 900 22px var(--letra-titulo); text-anchor: middle; }
+/* Rebajas: sellos girados que entran con un rebote */
+.sello { animation: entrar-sello .7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.sello--1 { top: 110px !important; right: 8%; width: 116px; rotate: -14deg; animation-delay: .25s; }
+.sello--2 { top: 40px !important; right: 34%; width: 80px; rotate: 12deg; animation-delay: .45s; }
+.sello__aro { fill: #fff; stroke: #c42032; stroke-width: 5; }
+.sello__aro--fino { fill: none; stroke-width: 2; stroke-dasharray: 4 4; }
+.sello__texto { fill: #c42032; font: 900 28px var(--letra-titulo); text-anchor: middle; }
+.sello__texto--grande { font-size: 50px; }
+@keyframes entrar-sello { from { transform: scale(2.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+/* Feria: farolillos */
+.farolillo { transform-origin: 50% 0; animation: balanceo 3.8s ease-in-out infinite alternate, entrar-arriba .9s ease-out both; }
+.farolillo--1 { right: 22%; width: 74px; }
+.farolillo--2 { right: 6%; width: 68px; animation-delay: -1.9s, .2s; }
+.farolillo__hilo { stroke: #1a1414; stroke-width: 2; }
+.farolillo__tapa { fill: #1a1414; }
+.farolillo--rojo { fill: #c42032; } .farolillo--amarillo { fill: #ffd400; }
+.farolillo__cuerpo { stroke: #1a1414; stroke-width: 2; }
+.farolillo__costilla { fill: none; stroke: rgb(26 20 20 / .45); stroke-width: 1.5; }
+
+/* Rótulo de la portada con más vida: estrella que brilla (Navidad) y destello que lo recorre (Black Friday) */
+html.skin.tema--navidad .portada__texto::before { animation: brillo-rotulo 3.5s ease-in-out infinite; }
+@keyframes brillo-rotulo { 0%, 100% { box-shadow: 0 0 0 rgb(230 201 119 / 0); } 50% { box-shadow: 0 0 18px rgb(230 201 119 / .75); } }
+html.skin.tema--black-friday .portada__texto::before {
+  background: linear-gradient(110deg, var(--amarillo) 40%, #fff6b0 50%, var(--amarillo) 60%) 200% 0 / 250% 100%;
+  box-shadow: 0 0 14px rgb(255 212 0 / .6), 0 0 2px rgb(255 212 0);
+  animation: destello 4.5s ease-in-out infinite;
+}
+@keyframes destello { 0%, 55% { background-position: 200% 0; } 100% { background-position: -50% 0; } }
+html.skin.tema--rebajas .portada__texto::before { animation: entrar-sello .7s cubic-bezier(.3, 1.6, .5, 1) both; transform-origin: left center; }
+html.skin.tema--rebajas .pastilla--oferta { animation: latido .9s ease-in-out 1s 2; }
+@keyframes latido { 50% { transform: scale(1.12); } }
+
+/* Banda de arriba: marquesina lenta */
+.banda-temporada { overflow: hidden; }
+.banda-temporada__pista { display: flex; width: max-content; min-height: 30px; align-items: center; animation: marquesina 45s linear infinite; }
+.banda-temporada:hover .banda-temporada__pista { animation-play-state: paused; }
+.banda-temporada__grupo { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.banda-temporada__grupo .banda-temporada__texto { white-space: nowrap; padding-right: 28px; }
+@keyframes marquesina { to { transform: translateX(-50%); } }
+
+/* Tarjetas de producto «En la temporada»: cinta del tema en la esquina de la foto */
+html.skin.tema--navidad { --s-cinta: "Navidad"; }
+html.skin.tema--black-friday { --s-cinta: "Black Friday"; }
+html.skin.tema--rebajas { --s-cinta: "Rebajas"; }
+html.skin.tema--feria { --s-cinta: "Feria"; }
+html.skin .producto--temporada .producto__foto { overflow: hidden; }
+html.skin .producto--temporada .producto__foto::after {
+  content: var(--s-cinta); position: absolute; z-index: 3; top: 18px; right: -46px; width: 170px; padding: 6px 0;
+  transform: rotate(40deg); text-align: center; pointer-events: none;
+  background: var(--s-rotulo-fondo); color: var(--s-rotulo-texto); box-shadow: 0 3px 8px rgb(0 0 0 / .25);
+  font: 900 .72rem/1 var(--letra-titulo); letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* Móvil: menos objetos y más pequeños; la tira más baja */
+@media (max-width: 680px) {
+  html.skin .portada__texto { padding-top: 64px; }
+  .deco-tira { height: 54px; }
+  .banderines { height: 54px !important; }
+  .cinta-rebajas { top: 18px; right: -92px; width: 280px; font-size: .85rem; }
+  .copo:nth-child(n+7) { display: none !important; }
+  .bola--1 { width: 34px; } .bola--2 { width: 30px; } .bola--3 { width: 38px; }
+  .etiqueta-colgada { width: 52px !important; } .etiqueta-colgada--1 { display: none !important; }
+  .sello--1 { width: 84px; top: 70px !important; } .sello--2 { width: 58px; top: 20px !important; }
+  .farolillo { width: 40px !important; }
+  html.skin .producto--temporada .producto__foto::after { top: 12px; right: -52px; font-size: .6rem; }
+}
+
+/* Fuera de la vista: quietas */
+html.deco-quieta .deco *, html.deco-quieta .portada__texto::before { animation-play-state: paused !important; }
+/* «Reducir movimiento» (preferencia del sistema): todo quieto; ni nieve ni confeti */
+@media (prefers-reduced-motion: reduce) {
+  .deco *, html.skin .portada__texto::before, html.skin .pastilla--oferta, .banda-temporada__pista { animation: none !important; }
+  .deco-fondo { display: none !important; }
+  .banda-temporada__pista { width: auto; justify-content: center; }
+  .banda-temporada__grupo + .banda-temporada__grupo, .banda-temporada__grupo > :nth-child(n+3) { display: none; }
 }

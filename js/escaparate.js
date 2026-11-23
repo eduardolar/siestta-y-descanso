@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261123-12';
+  var VERSION_FOTOS = '20261123-14';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -153,7 +153,8 @@
   // Solo dos acciones: «Reservar» (o «Avisadme si queda libre») y «Preguntar»
   function crearTarjeta(p, tienda) {
     var wa = tienda && tienda.whatsapp;
-    var li = el('li', 'producto' + (p.estado === 'reservado' ? ' producto--reservado' : ''));
+    var li = el('li', 'producto' + (p.estado === 'reservado' ? ' producto--reservado' : '') +
+      (p.enTemporada ? ' producto--temporada' : '')); // con temporada encendida lleva su cinta en la esquina (CSS)
     li.dataset.categoria = p.categoria;
     li.dataset.id = p.id;
     // Tocar la foto o el nombre abre la ficha (js/ficha.js); para el teclado, el nombre es un enlace a #p/{id}
@@ -390,8 +391,20 @@
   // «Piel» de temporada: clases «skin tema--…» en <html>; estilos.css tiñe con ellas portada, barras,
   // botones, etiquetas y contacto. js/tema.js ya las pone antes de pintar (con la caché); aquí se
   // corrigen si lo del servidor dice otra cosa. Solo en la web (el panel no se tiñe)
+  // Las animaciones de la portada se paran cuando no se ve (clase «deco-quieta» en <html>)
+  var vigilandoPortada = false;
+  function vigilarPortada() {
+    if (vigilandoPortada || !('IntersectionObserver' in window)) return;
+    var portada = document.querySelector('.portada');
+    if (!portada) return;
+    vigilandoPortada = true;
+    new IntersectionObserver(function (e) {
+      document.documentElement.classList.toggle('deco-quieta', !e[0].isIntersecting);
+    }).observe(portada);
+  }
   function aplicarPiel(t) {
     if (document.body && document.body.classList.contains('panel')) return;
+    if (t) vigilarPortada();
     var h = document.documentElement;
     Array.prototype.slice.call(h.classList).forEach(function (c) { if (/^tema--/.test(c)) h.classList.remove(c); });
     h.classList.toggle('skin', !!t);
@@ -414,10 +427,20 @@
     }
     banda.className = 'banda-temporada tema--' + t.tipo;
     banda.textContent = '';
-    var fila = el('p', 'envoltura banda-temporada__fila');
-    fila.appendChild(picto(t.tipo, 'banda-temporada__picto'));
-    fila.appendChild(el('span', 'banda-temporada__texto', t.texto));
-    banda.appendChild(fila);
+    // Marquesina lenta con el texto repetido (se para con el ratón encima y con «reducir movimiento»).
+    // El texto se lee una vez (oculto a la vista); la tira que se mueve es solo decoración
+    banda.appendChild(el('p', 'visualmente-oculto', t.texto));
+    var pista = el('div', 'banda-temporada__pista');
+    pista.setAttribute('aria-hidden', 'true');
+    for (var k = 0; k < 2; k++) {
+      var grupo = el('span', 'banda-temporada__grupo');
+      for (var j = 0; j < 4; j++) {
+        grupo.appendChild(picto(t.tipo, 'banda-temporada__picto'));
+        grupo.appendChild(el('span', 'banda-temporada__texto', t.texto));
+      }
+      pista.appendChild(grupo);
+    }
+    banda.appendChild(pista);
   }
 
   // Sección con los productos marcados «En la temporada», con el mismo carrusel que «Ahora en tienda».

@@ -206,14 +206,15 @@
     seccion.hidden = !hayNota && op.lista.length === 0 && !seccion.querySelector('#marcas:not([hidden])');
   }
 
-  // Carrusel de opiniones: 1 a la vez en el móvil y 2 desde 640 px; gira sola cada 6 s (salvo con «reducir
-  // movimiento») y se para con el ratón encima, con el foco dentro, con la pestaña oculta o con la pausa
-  // (WCAG 2.2.2). Flechas, puntos y deslizar con el dedo. Si caben todas, no hay carrusel.
+  // Carrusel de opiniones: 1 a la vez en el móvil y 2 desde 640 px; pasa sola cada 10 s (salvo con «reducir
+  // movimiento»), se espera con el ratón encima, con el foco dentro o con la pestaña oculta, y SE PARA DEL
+  // TODO (sin volver a girar) en cuanto la persona toca, desliza, usa la rueda o las flechas y puntos.
+  // Si caben todas, no hay carrusel.
   var carruselCitas = (function () {
-    var caja, ul, controles, puntos, pausa, ant, sig;
+    var caja, ul, controles, puntos, ant, sig;
     // actual: la primera opinión a la vista; posiciones: cuántos «saltos» hay (n − las que caben + 1)
     var actual = 0, n = 0, visibles = 1, posiciones = 1;
-    var temporizador = null, pausadoBoton = false, encima = false, conFoco = false, mirando = null;
+    var temporizador = null, encima = false, conFoco = false, mirando = null, parado = false;
     var reducir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var listo = false;
 
@@ -234,16 +235,13 @@
         li.setAttribute('aria-hidden', i >= actual && i < actual + visibles ? 'false' : 'true');
       });
     }
-    function gira() { return posiciones > 1 && !reducir && !pausadoBoton && !encima && !conFoco && !document.hidden; }
+    function gira() { return posiciones > 1 && !reducir && !parado && !encima && !conFoco && !document.hidden; }
+    // La persona ha tomado el mando: ya no gira sola
+    function parar() { if (!parado) { parado = true; programar(); } }
     function programar() {
       clearInterval(temporizador);
       temporizador = null;
-      if (gira()) temporizador = setInterval(function () { ir(actual + 1, false); }, 6000);
-    }
-    function pintarPausa() {
-      pausa.hidden = reducir || posiciones < 2;
-      pausa.setAttribute('aria-pressed', pausadoBoton ? 'true' : 'false');
-      pausa.setAttribute('aria-label', pausadoBoton ? 'Seguir pasando las opiniones' : 'Pausar las opiniones');
+      if (gira()) temporizador = setInterval(function () { ir(actual + 1, false); }, 10000);
     }
     // Cuántas caben a la vez (lo decide el CSS: 1 en el móvil, 2 desde 640 px) y, con eso, puntos y flechas
     function medir() {
@@ -267,7 +265,6 @@
       ul.scrollLeft = ul.children[actual] ? ul.children[actual].offsetLeft : 0;
       if (es) { marcar(); ul.setAttribute('aria-live', 'off'); }
       else { ul.removeAttribute('aria-live'); diapositivas().forEach(function (x) { x.removeAttribute('aria-hidden'); }); }
-      pintarPausa();
       programar();
     }
     function iniciar() {
@@ -276,15 +273,17 @@
       if (!caja || !ul) return false;
       controles = document.getElementById('citas-controles');
       puntos = document.getElementById('citas-puntos');
-      pausa = document.getElementById('citas-pausa');
       ant = document.getElementById('citas-ant');
       sig = document.getElementById('citas-sig');
-      ant.addEventListener('click', function () { ir(actual - 1, true); });
-      sig.addEventListener('click', function () { ir(actual + 1, true); });
-      pausa.addEventListener('click', function () { pausadoBoton = !pausadoBoton; pintarPausa(); programar(); });
+      ant.addEventListener('click', function () { parar(); ir(actual - 1, true); });
+      sig.addEventListener('click', function () { parar(); ir(actual + 1, true); });
       puntos.addEventListener('click', function (e) {
         var b = e.target.closest('[data-i]');
-        if (b) ir(parseInt(b.dataset.i, 10), true);
+        if (b) { parar(); ir(parseInt(b.dataset.i, 10), true); }
+      });
+      // Tocar o deslizar (dedo, ratón, rueda o teclado dentro del carrusel) lo para para siempre
+      ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (tipo) {
+        caja.addEventListener(tipo, parar, { passive: true });
       });
       caja.addEventListener('mouseenter', function () { encima = true; programar(); });
       caja.addEventListener('mouseleave', function () { encima = false; programar(); });
