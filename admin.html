@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src https://elhpoyycvgcrsuttjfpp.supabase.co; img-src 'self' blob: data: https://elhpoyycvgcrsuttjfpp.supabase.co; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <link rel="stylesheet" href="css/marco.css?v=20261123-12" id="anti-marco">
-  <script src="js/marco.js?v=20261123-12"></script>
+  <link rel="stylesheet" href="css/marco.css?v=20261123-14" id="anti-marco">
+  <script src="js/marco.js?v=20261123-14"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Panel de la tienda · Siestta y Descanso</title>
   <meta name="robots" content="noindex, nofollow">
@@ -12,8 +12,8 @@
   <link rel="icon" href="img/logo.png">
   <link rel="preload" href="fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/inter-display-var.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/estilos.css?v=20261123-12">
-  <link rel="stylesheet" href="css/admin.css?v=20261123-12">
+  <link rel="stylesheet" href="css/estilos.css?v=20261123-14">
+  <link rel="stylesheet" href="css/admin.css?v=20261123-14">
 </head>
 <body class="panel" data-sesion="no">
   <a class="saltar" href="#panel-contenido">Saltar al contenido</a>
@@ -53,12 +53,8 @@
         <span class="pestana__texto">Portada</span>
       </button>
       <button type="button" role="tab" class="pestana" id="t-horario" aria-controls="p-horario" aria-selected="false" tabindex="-1">
-        <svg class="icono pestana__icono" aria-hidden="true" focusable="false"><use href="#i-reloj"/></svg>
-        <span class="pestana__texto">Horario</span>
-      </button>
-      <button type="button" role="tab" class="pestana" id="t-contacto" aria-controls="p-contacto" aria-selected="false" tabindex="-1">
-        <svg class="icono pestana__icono" aria-hidden="true" focusable="false"><use href="#i-telefono"/></svg>
-        <span class="pestana__texto">Contacto</span>
+        <svg class="icono pestana__icono" aria-hidden="true" focusable="false"><use href="#i-tienda"/></svg>
+        <span class="pestana__texto">Tienda</span>
       </button>
       <button type="button" role="tab" class="pestana" id="t-confianza" aria-controls="p-confianza" aria-selected="false" tabindex="-1">
         <svg class="icono pestana__icono" aria-hidden="true" focusable="false"><use href="#i-estrella"/></svg>
@@ -98,261 +94,66 @@
       <p class="lista-vacia" id="lista-vacia" hidden></p>
     </section>
 
-    <!-- Horario (y el aviso de la web) -->
+    <!-- Tienda: horario, aviso de la web y contacto; todo a la vista, se edita en el sitio -->
     <section class="hoja" id="p-horario" role="tabpanel" aria-labelledby="t-horario" tabindex="-1" hidden>
-      <h1 class="cartel hoja__titulo">Horario</h1>
+      <h1 class="cartel hoja__titulo">Tienda</h1>
 
-      <details class="bloque plegable" id="aviso-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-aviso"/></svg></span>Aviso en la web</h2>
+      <section class="bloque con-estado" id="horario-bloque" aria-labelledby="horario-titulo">
+        <div class="bloque__cab">
+          <h2 class="bloque__titulo" id="horario-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-reloj"/></svg></span>Horario</h2>
           <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <label class="campo">
-            <span class="campo__etiqueta">Texto del aviso</span>
-            <input type="text" id="aviso-texto" maxlength="120" autocomplete="off" aria-describedby="aviso-texto-error aviso-cuenta">
-            <span class="campo__error" id="aviso-texto-error" hidden></span>
-            <span class="campo__cuenta" id="aviso-cuenta">0 / 120</span>
-          </label>
-          <div class="rapidos" role="group" aria-label="Textos rápidos">
-            <button type="button" class="rapido" data-texto="Cerrado por vacaciones. Volvemos pronto.">Cerrado por vacaciones</button>
-            <button type="button" class="rapido" data-texto="Cerrado por feria. ¡Felices fiestas!">Cerrado por feria</button>
-            <button type="button" class="rapido" data-texto="Hoy cerramos antes.">Hoy cerramos antes</button>
-          </div>
+        </div>
+        <ol class="tramos" id="tramos" aria-label="Horarios"></ol>
+        <div class="anadir-tramo" role="group" aria-label="Añadir horario">
+          <span class="anadir-tramo__texto">Añadir:</span>
+          <button type="button" class="rapido" data-anadir-dias="Lunes a viernes">+ Lunes a viernes</button>
+          <button type="button" class="rapido" data-anadir-dias="Sábados">+ Sábados</button>
+          <button type="button" class="rapido" data-anadir-dias="Domingos">+ Domingos</button>
+          <button type="button" class="rapido" id="anadir-tramo" data-anadir-dias="">+ Otros días</button>
+        </div>
+        <span class="visualmente-oculto" id="atajo-ya">Ya está: hay un horario con esos días.</span>
+        <p class="bloque__ayuda">Los días que no estén en ningún horario salen como cerrados.</p>
+        <p class="bloque__ayuda">¿Horario de verano? Cámbialo aquí y vuelve a ponerlo después, o avísalo en «Aviso en la web».</p>
+        <div class="previa">
+          <p class="previa-titulo">Así se verá en la web:</p>
+          <p class="horario-previa" id="horario-previa"></p>
+        </div>
+      </section>
 
-          <div class="aviso-estado">
-            <p class="aviso-estado__texto" id="aviso-estado"></p>
-            <button type="button" class="boton boton--noche" id="aviso-boton">Poner el aviso en la web</button>
-          </div>
-
-          <div class="previa">
-            <p class="previa-titulo">Así se verá:</p>
-            <div class="aviso aviso--previa" id="aviso-previa">
-              <p class="aviso__fila"><strong class="aviso__ante">Aviso</strong> <span class="aviso__texto" id="aviso-previa-texto"></span></p>
-            </div>
+      <section class="bloque con-estado" id="aviso-bloque" aria-labelledby="aviso-titulo">
+        <div class="bloque__cab">
+          <h2 class="bloque__titulo" id="aviso-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-aviso"/></svg></span>Aviso en la web</h2>
+          <span class="plegable__estado"></span>
+        </div>
+        <label class="campo">
+          <span class="campo__etiqueta">Texto del aviso</span>
+          <input type="text" id="aviso-texto" maxlength="120" autocomplete="off" aria-describedby="aviso-texto-error aviso-cuenta">
+          <span class="campo__error" id="aviso-texto-error" hidden></span>
+          <span class="campo__cuenta" id="aviso-cuenta">0 / 120</span>
+        </label>
+        <div class="rapidos" role="group" aria-label="Textos rápidos">
+          <button type="button" class="rapido" data-texto="Cerrado por vacaciones. Volvemos pronto.">Cerrado por vacaciones</button>
+          <button type="button" class="rapido" data-texto="Cerrado por feria. ¡Felices fiestas!">Cerrado por feria</button>
+          <button type="button" class="rapido" data-texto="Hoy cerramos antes.">Hoy cerramos antes</button>
+        </div>
+        <div class="aviso-estado">
+          <p class="aviso-estado__texto" id="aviso-estado"></p>
+          <button type="button" class="boton boton--noche" id="aviso-boton">Poner el aviso en la web</button>
+        </div>
+        <div class="previa">
+          <p class="previa-titulo">Así se verá:</p>
+          <div class="aviso aviso--previa" id="aviso-previa">
+            <p class="aviso__fila"><strong class="aviso__ante">Aviso</strong> <span class="aviso__texto" id="aviso-previa-texto"></span></p>
           </div>
         </div>
-      </details>
+      </section>
 
-      <details class="bloque plegable" id="horario-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-reloj"/></svg></span>Horario de la tienda</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <p class="bloque__ayuda">Toca un horario para cambiarlo. Los días sin marcar salen como cerrados.</p>
-          <ol class="tramos" id="tramos"></ol>
-          <button type="button" class="boton boton--linea boton--ancho" id="anadir-tramo"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-mas"/></svg> Añadir otro horario</button>
-          <div class="previa">
-            <p class="previa-titulo">Así se verá en la web:</p>
-            <p class="horario-previa" id="horario-previa"></p>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <!-- Portada: producto destacado, foto de la tienda y textos -->
-    <section class="hoja" id="p-textos" role="tabpanel" aria-labelledby="t-textos" tabindex="-1" hidden>
-      <h1 class="cartel hoja__titulo">Portada</h1>
-      <div class="bloque">
-        <fieldset class="opciones">
-          <legend class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-estrella"/></svg></span>Producto destacado</legend>
-          <div class="destacados" id="destacados"></div>
-        </fieldset>
-      </div>
-
-      <!-- Lo demás de la portada va plegado: se abre lo que se quiera cambiar -->
-      <details class="bloque plegable" id="tienda-foto-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-camara"/></svg></span>Foto de la tienda</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <p class="bloque__ayuda" id="tienda-foto-ayuda">Si no hay destacado.</p>
-          <img class="tienda-foto" id="tienda-foto-img" alt="Foto de la tienda que sale ahora">
-          <input type="file" id="tienda-foto-camara" class="visualmente-oculto" accept="image/*" capture="environment" tabindex="-1">
-          <input type="file" id="tienda-foto-galeria" class="visualmente-oculto" accept="image/*" tabindex="-1">
-          <div class="foto-acciones">
-            <button type="button" class="boton boton--linea" id="tienda-foto-hacer"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-camara"/></svg> Hacer foto</button>
-            <button type="button" class="boton-texto" id="tienda-foto-elegir">Elegir de la galería</button>
-          </div>
-          <p class="foto-estado" id="tienda-foto-estado" role="status"></p>
-        </div>
-      </details>
-
-      <details class="bloque plegable" id="textos-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-texto"/></svg></span>Textos de la portada</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <label class="campo">
-            <span class="campo__etiqueta">Titular grande</span>
-            <span class="campo__ayuda" id="titular-ayuda">Hasta 3 líneas. La última sale en amarillo.</span>
-            <textarea id="titular" rows="2" maxlength="80" aria-describedby="titular-ayuda titular-error"></textarea>
-            <span class="campo__error" id="titular-error" hidden></span>
-          </label>
-          <label class="campo">
-            <span class="campo__etiqueta">Frase de debajo</span>
-            <textarea id="entradilla" rows="2" maxlength="220" aria-describedby="entradilla-cuenta"></textarea>
-            <span class="campo__cuenta" id="entradilla-cuenta">0 / 220</span>
-          </label>
-          <p class="bloque__ayuda">Si lo dejas vacío, se usa el de siempre.</p>
-
-          <div class="previa">
-            <p class="previa-titulo">Así se verá:</p>
-            <div class="portada-previa" id="portada-previa" inert>
-              <p class="cartel portada-previa__titular" id="titular-previa"></p>
-              <p class="portada-previa__entradilla" id="entradilla-previa"></p>
-              <div class="portada-previa__media">
-                <figure class="portada__foto"><img alt=""></figure>
-                <a class="oferta-destacada" hidden></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Temporada: banda de arriba y sección con los productos marcados «En la temporada» -->
-      <details class="bloque plegable" id="temporada-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-calendario"/></svg></span>Temporada</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <fieldset class="opciones">
-            <legend class="campo__etiqueta">¿Qué temporada?</legend>
-            <div class="opciones__fila" id="temporada-tipos">
-              <label class="opcion opcion--chip"><input type="radio" name="temporada" value="ninguna"><span>Ninguna</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="temporada" value="navidad"><span>Navidad</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="temporada" value="black-friday"><span>Black Friday</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="temporada" value="rebajas"><span>Rebajas</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="temporada" value="feria"><span>Feria</span></label>
-            </div>
-          </fieldset>
-          <div class="fila-campos">
-            <label class="campo">
-              <span class="campo__etiqueta">Texto de la banda (opcional)</span>
-              <input type="text" id="temporada-texto" maxlength="60" autocomplete="off" aria-describedby="temporada-cuenta">
-              <span class="campo__cuenta" id="temporada-cuenta">0 / 60</span>
-            </label>
-            <label class="campo campo--corto">
-              <span class="campo__etiqueta">Hasta (opcional)</span>
-              <input type="date" id="temporada-hasta" aria-describedby="temporada-hasta-ayuda temporada-hasta-error">
-              <span class="campo__ayuda" id="temporada-hasta-ayuda">Sale hasta este día incluido.</span>
-              <span class="campo__error" id="temporada-hasta-error" hidden></span>
-            </label>
-          </div>
-          <p class="temporada-recuento" id="temporada-recuento"></p>
-          <details class="mas-detalles" id="temporada-prod-caja">
-            <summary><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-lista"/></svg><span>Productos de la temporada</span><span class="mas-detalles__cuenta" id="temporada-prod-cuenta"></span></summary>
-            <div class="mas-detalles__campos">
-              <div class="temporada-filtros">
-                <label class="campo campo--compacto">
-                  <span class="campo__etiqueta">Buscar</span>
-                  <input type="search" id="temporada-buscar" autocomplete="off" placeholder="Nombre del producto">
-                </label>
-                <label class="casilla"><input type="checkbox" id="temporada-solo"><span>Solo los marcados</span></label>
-              </div>
-              <ul class="temporada-lista" id="temporada-lista" aria-label="Productos: enciende los que salen en la temporada"></ul>
-              <p class="bloque__ayuda" id="temporada-lista-vacia" hidden></p>
-            </div>
-          </details>
-          <div class="previa">
-            <p class="previa-titulo">Así se verá:</p>
-            <div class="temporada-previa" id="temporada-previa" inert></div>
-          </div>
-        </div>
-      </details>
-
-      <!-- Anuncio destacado: sorteos, eventos… -->
-      <details class="bloque plegable" id="anuncio-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-aviso"/></svg></span>Anuncio</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
-          <label class="interruptor interruptor--caja">
-            <input type="checkbox" role="switch" id="anuncio-activo" aria-describedby="anuncio-activo-error">
-            <span class="interruptor__texto">Enseñarlo en la web</span>
-          </label>
-          <span class="campo__error" id="anuncio-activo-error" hidden></span>
-          <fieldset class="opciones">
-            <legend class="campo__etiqueta">¿Qué quieres anunciar?</legend>
-            <div class="opciones__fila" id="anuncio-tipos">
-              <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="sorteo"><span>Sorteo</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="evento"><span>Evento</span></label>
-              <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="anuncio"><span>Anuncio</span></label>
-            </div>
-          </fieldset>
-          <p class="bloque__ayuda" id="anuncio-nota-sorteo">Si haces un sorteo, añade el enlace a las bases.</p>
-          <label class="campo">
-            <span class="campo__etiqueta">Título</span>
-            <input type="text" id="anuncio-titulo" maxlength="60" autocomplete="off" placeholder="Sorteamos un colchón por Navidad" aria-describedby="anuncio-titulo-error anuncio-titulo-cuenta">
-            <span class="campo__error" id="anuncio-titulo-error" hidden></span>
-            <span class="campo__cuenta" id="anuncio-titulo-cuenta">0 / 60</span>
-          </label>
-          <label class="campo">
-            <span class="campo__etiqueta">Texto (opcional)</span>
-            <textarea id="anuncio-texto" rows="2" maxlength="220" aria-describedby="anuncio-texto-cuenta"></textarea>
-            <span class="campo__cuenta" id="anuncio-texto-cuenta">0 / 220</span>
-          </label>
-          <label class="campo">
-            <span class="campo__etiqueta">Enlace a las bases (opcional)</span>
-            <input type="url" id="anuncio-bases" maxlength="500" autocomplete="off" inputmode="url" aria-describedby="anuncio-bases-error">
-            <span class="campo__error" id="anuncio-bases-error" hidden></span>
-          </label>
-
-          <details class="mas-detalles">
-            <summary><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-lista"/></svg><span>Foto, botón y fecha (opcional)</span></summary>
-            <div class="mas-detalles__campos">
-              <div class="campo">
-                <span class="campo__etiqueta">Foto</span>
-                <img class="tienda-foto" id="anuncio-foto-img" alt="Foto del anuncio" hidden>
-                <input type="file" id="anuncio-foto-camara" class="visualmente-oculto" accept="image/*" capture="environment" tabindex="-1">
-                <input type="file" id="anuncio-foto-galeria" class="visualmente-oculto" accept="image/*" tabindex="-1">
-                <div class="foto-acciones">
-                  <button type="button" class="boton boton--linea" id="anuncio-foto-hacer"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-camara"/></svg> Hacer foto</button>
-                  <button type="button" class="boton-texto" id="anuncio-foto-elegir">Elegir de la galería</button>
-                  <button type="button" class="boton-texto" id="anuncio-foto-quitar" hidden>Quitar la foto</button>
-                </div>
-                <p class="foto-estado" id="anuncio-foto-estado" role="status"></p>
-              </div>
-              <div class="fila-campos">
-                <label class="campo">
-                  <span class="campo__etiqueta">Texto del botón</span>
-                  <input type="text" id="anuncio-boton" maxlength="30" autocomplete="off" placeholder="Participa en Instagram">
-                </label>
-                <label class="campo">
-                  <span class="campo__etiqueta">Enlace del botón</span>
-                  <input type="url" id="anuncio-enlace" maxlength="500" autocomplete="off" inputmode="url" placeholder="https://www.instagram.com/p/…" aria-describedby="anuncio-enlace-error">
-                  <span class="campo__error" id="anuncio-enlace-error" hidden></span>
-                </label>
-              </div>
-              <label class="campo campo--corto">
-                <span class="campo__etiqueta">Hasta</span>
-                <input type="date" id="anuncio-hasta">
-              </label>
-            </div>
-          </details>
-
-          <div class="previa">
-            <p class="previa-titulo">Así se verá:</p>
-            <div class="anuncio-previa" id="anuncio-previa" inert></div>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <!-- Contacto: cuatro datos, en una sola tarjeta (no hace falta plegar nada) -->
-    <section class="hoja" id="p-contacto" role="tabpanel" aria-labelledby="t-contacto" tabindex="-1" hidden>
-      <h1 class="cartel hoja__titulo">Contacto</h1>
-      <div class="bloque">
-        <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-telefono"/></svg></span>Datos de contacto</h2>
+      <section class="bloque" id="contacto-bloque" aria-labelledby="contacto-titulo">
+        <h2 class="bloque__titulo" id="contacto-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-telefono"/></svg></span>Contacto</h2>
         <div class="fila-campos">
           <label class="campo">
             <span class="campo__etiqueta campo__etiqueta--icono"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-telefono"/></svg>Teléfono</span>
-            <input type="tel" id="telefono" maxlength="20" autocomplete="off" inputmode="tel" aria-describedby="telefono-error">
+            <input type="tel" id="telefono" maxlength="20" autocomplete="off" inputmode="tel" placeholder="926 12 34 56" aria-describedby="telefono-error">
             <span class="campo__error" id="telefono-error" hidden></span>
           </label>
           <label class="campo">
@@ -370,43 +171,235 @@
           <span class="campo__etiqueta campo__etiqueta--icono"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-camion"/></svg>Zona de entrega</span>
           <input type="text" id="zona-entrega" maxlength="80" autocomplete="off" placeholder="Tomelloso y pueblos cercanos">
         </label>
-      </div>
+      </section>
     </section>
 
-    <!-- Opiniones: opiniones, financiación, marcas y año (id «confianza») -->
-    <section class="hoja" id="p-confianza" role="tabpanel" aria-labelledby="t-confianza" tabindex="-1" hidden>
-      <h1 class="cartel hoja__titulo">Opiniones</h1>
+    <!-- Portada: arriba lo que más se usa (temporada, anuncio, destacado); textos y foto de la tienda, plegados abajo -->
+    <section class="hoja" id="p-textos" role="tabpanel" aria-labelledby="t-textos" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Portada</h1>
 
-      <details class="bloque plegable" id="opiniones-bloque">
+      <!-- Temporada: banda de arriba y sección con los productos marcados «En la temporada» -->
+      <section class="bloque con-estado" id="temporada-bloque" aria-labelledby="temporada-titulo">
+        <div class="bloque__cab">
+          <h2 class="bloque__titulo" id="temporada-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-calendario"/></svg></span>Temporada</h2>
+          <span class="plegable__estado"></span>
+        </div>
+        <fieldset class="opciones">
+          <legend class="visualmente-oculto">¿Qué temporada?</legend>
+          <div class="opciones__fila" id="temporada-tipos">
+            <label class="opcion opcion--chip"><input type="radio" name="temporada" value="ninguna"><span>Ninguna</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="temporada" value="navidad"><span>Navidad</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="temporada" value="black-friday"><span>Black Friday</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="temporada" value="rebajas"><span>Rebajas</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="temporada" value="feria"><span>Feria</span></label>
+          </div>
+        </fieldset>
+        <div class="fila-campos">
+          <label class="campo">
+            <span class="campo__etiqueta">Texto de la banda (opcional)</span>
+            <input type="text" id="temporada-texto" maxlength="60" autocomplete="off" aria-describedby="temporada-cuenta">
+            <span class="campo__cuenta" id="temporada-cuenta">0 / 60</span>
+          </label>
+          <label class="campo campo--corto">
+            <span class="campo__etiqueta">Hasta (opcional)</span>
+            <input type="date" id="temporada-hasta" aria-describedby="temporada-hasta-ayuda temporada-hasta-error">
+            <span class="campo__ayuda" id="temporada-hasta-ayuda">Si lo dejas vacío, sigue hasta que la apagues.</span>
+            <span class="campo__error" id="temporada-hasta-error" hidden></span>
+          </label>
+        </div>
+        <p class="temporada-recuento" id="temporada-recuento"></p>
+        <details class="mas-detalles" id="temporada-prod-caja">
+          <summary><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-lista"/></svg><span>Productos de la temporada</span><span class="mas-detalles__cuenta" id="temporada-prod-cuenta"></span></summary>
+          <div class="mas-detalles__campos">
+            <div class="temporada-filtros">
+              <label class="campo campo--compacto">
+                <span class="campo__etiqueta">Buscar</span>
+                <input type="search" id="temporada-buscar" autocomplete="off" placeholder="Nombre del producto">
+              </label>
+              <label class="casilla"><input type="checkbox" id="temporada-solo"><span>Solo los marcados</span></label>
+            </div>
+            <ul class="temporada-lista" id="temporada-lista" aria-label="Productos: enciende los que salen en la temporada"></ul>
+            <p class="bloque__ayuda" id="temporada-lista-vacia" hidden></p>
+          </div>
+        </details>
+        <div class="previa">
+          <p class="previa-titulo">Así se verá:</p>
+          <div class="temporada-previa" id="temporada-previa" inert></div>
+        </div>
+      </section>
+
+      <!-- Anuncio destacado: sorteos, eventos… (título y texto a la vista; foto, botón y fecha, plegados) -->
+      <section class="bloque con-estado" id="anuncio-bloque" aria-labelledby="anuncio-bloque-titulo">
+        <div class="bloque__cab">
+          <h2 class="bloque__titulo" id="anuncio-bloque-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-aviso"/></svg></span>Anuncio</h2>
+          <span class="plegable__estado"></span>
+        </div>
+        <fieldset class="opciones">
+          <legend class="visualmente-oculto">¿Qué quieres anunciar?</legend>
+          <div class="opciones__fila" id="anuncio-tipos">
+            <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="sorteo"><span>Sorteo</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="evento"><span>Evento</span></label>
+            <label class="opcion opcion--chip"><input type="radio" name="anuncio-tipo" value="anuncio"><span>Anuncio</span></label>
+          </div>
+        </fieldset>
+        <label class="campo">
+          <span class="campo__etiqueta">Título</span>
+          <input type="text" id="anuncio-titulo" maxlength="60" autocomplete="off" placeholder="Sorteamos un colchón por Navidad" aria-describedby="anuncio-titulo-error anuncio-titulo-cuenta">
+          <span class="campo__error" id="anuncio-titulo-error" hidden></span>
+          <span class="campo__cuenta" id="anuncio-titulo-cuenta">0 / 60</span>
+        </label>
+        <label class="campo">
+          <span class="campo__etiqueta">Texto (opcional)</span>
+          <textarea id="anuncio-texto" rows="2" maxlength="220" aria-describedby="anuncio-texto-cuenta"></textarea>
+          <span class="campo__cuenta" id="anuncio-texto-cuenta">0 / 220</span>
+        </label>
+        <!-- En un sorteo, las bases y la fecha van aquí, a la vista; en lo demás, dentro del plegable (admin.js las mueve) -->
+        <div class="anuncio-hueco" id="anuncio-hueco-visible">
+          <div class="anuncio-sorteo" id="anuncio-sorteo-campos">
+            <label class="campo">
+              <span class="campo__etiqueta">Enlace a las bases (opcional)</span>
+              <span class="campo__ayuda" id="anuncio-nota-sorteo">Si haces un sorteo, añade el enlace a las bases.</span>
+              <input type="url" id="anuncio-bases" maxlength="500" autocomplete="off" inputmode="url" aria-describedby="anuncio-nota-sorteo anuncio-bases-error">
+              <span class="campo__error" id="anuncio-bases-error" hidden></span>
+            </label>
+            <label class="campo campo--corto">
+              <span class="campo__etiqueta">Hasta (opcional)</span>
+              <input type="date" id="anuncio-hasta">
+            </label>
+          </div>
+        </div>
+        <label class="interruptor interruptor--caja">
+          <input type="checkbox" role="switch" id="anuncio-activo" aria-describedby="anuncio-activo-error anuncio-nota-publicar">
+          <span class="interruptor__texto">Enseñarlo en la web</span>
+        </label>
+        <span class="campo__error" id="anuncio-activo-error" hidden></span>
+        <p class="bloque__ayuda" id="anuncio-nota-publicar" hidden>Se actualiza en la web al terminar de escribir.</p>
+        <details class="mas-detalles">
+          <summary><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-lista"/></svg><span id="anuncio-pliegue-titulo">Foto y botón (opcional)</span></summary>
+          <div class="mas-detalles__campos">
+            <div class="anuncio-hueco" id="anuncio-hueco-plegado"></div>
+            <div class="campo">
+              <span class="campo__etiqueta">Foto</span>
+              <img class="tienda-foto" id="anuncio-foto-img" alt="Foto del anuncio" hidden>
+              <input type="file" id="anuncio-foto-camara" class="visualmente-oculto" accept="image/*" capture="environment" tabindex="-1">
+              <input type="file" id="anuncio-foto-galeria" class="visualmente-oculto" accept="image/*" tabindex="-1">
+              <div class="foto-acciones">
+                <button type="button" class="boton boton--linea" id="anuncio-foto-hacer"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-camara"/></svg> Hacer foto</button>
+                <button type="button" class="boton-texto" id="anuncio-foto-elegir">Elegir de la galería</button>
+                <button type="button" class="boton-texto" id="anuncio-foto-quitar" hidden>Quitar la foto</button>
+              </div>
+              <p class="foto-estado" id="anuncio-foto-estado" role="status"></p>
+            </div>
+            <div class="fila-campos">
+              <label class="campo">
+                <span class="campo__etiqueta">Texto del botón</span>
+                <input type="text" id="anuncio-boton" maxlength="30" autocomplete="off" placeholder="Participa en Instagram">
+              </label>
+              <label class="campo">
+                <span class="campo__etiqueta">Enlace del botón</span>
+                <input type="url" id="anuncio-enlace" maxlength="500" autocomplete="off" inputmode="url" placeholder="https://www.instagram.com/p/…" aria-describedby="anuncio-enlace-error">
+                <span class="campo__error" id="anuncio-enlace-error" hidden></span>
+              </label>
+            </div>
+          </div>
+        </details>
+        <div class="previa">
+          <p class="previa-titulo">Así se verá:</p>
+          <div class="anuncio-previa" id="anuncio-previa" inert></div>
+        </div>
+      </section>
+
+      <div class="bloque">
+        <fieldset class="opciones">
+          <legend class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-estrella"/></svg></span>Producto destacado</legend>
+          <div class="destacados" id="destacados"></div>
+        </fieldset>
+      </div>
+
+      <!-- Lo que se cambia poco, plegado y abajo -->
+      <details class="bloque plegable con-estado" id="textos-bloque">
         <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-estrella"/></svg></span>Opiniones de Google</h2>
+          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-texto"/></svg></span>Textos de la portada</h2>
           <span class="plegable__estado"></span>
         </summary>
         <div class="plegable__cuerpo">
-          <div class="fila-campos">
-            <label class="campo campo--corto">
-              <span class="campo__etiqueta">Nota (1 a 5)</span>
-              <input type="text" id="op-nota" inputmode="decimal" maxlength="3" autocomplete="off" aria-describedby="op-nota-error">
-              <span class="campo__error" id="op-nota-error" hidden></span>
-            </label>
-            <label class="campo campo--corto">
-              <span class="campo__etiqueta">Nº de opiniones</span>
-              <input type="text" id="op-total" inputmode="numeric" maxlength="6" autocomplete="off" aria-describedby="op-total-error">
-              <span class="campo__error" id="op-total-error" hidden></span>
-            </label>
+          <label class="campo">
+            <span class="campo__etiqueta">Titular grande</span>
+            <span class="campo__ayuda" id="titular-ayuda">Hasta 3 líneas. La última sale en amarillo.</span>
+            <textarea id="titular" rows="2" maxlength="80" aria-describedby="titular-ayuda titular-error"></textarea>
+            <span class="campo__error" id="titular-error" hidden></span>
+          </label>
+          <label class="campo">
+            <span class="campo__etiqueta">Frase de debajo</span>
+            <textarea id="entradilla" rows="2" maxlength="220" aria-describedby="entradilla-cuenta"></textarea>
+            <span class="campo__cuenta" id="entradilla-cuenta">0 / 220</span>
+          </label>
+          <p class="bloque__ayuda">Si lo dejas vacío, se usa el de siempre.</p>
+          <div class="previa">
+            <p class="previa-titulo">Así se verá:</p>
+            <div class="portada-previa" id="portada-previa" inert>
+              <p class="cartel portada-previa__titular" id="titular-previa"></p>
+              <p class="portada-previa__entradilla" id="entradilla-previa"></p>
+              <div class="portada-previa__media">
+                <figure class="portada__foto"><img alt=""></figure>
+                <a class="oferta-destacada" hidden></a>
+              </div>
+            </div>
           </div>
-          <p class="bloque__ayuda">Toca una opinión para cambiarla. Lo que dejes vacío no sale.</p>
-          <ol class="opiniones-lista" id="op-lista" aria-label="Opiniones que salen en la web"></ol>
-          <button type="button" class="boton boton--linea boton--ancho" id="op-anadir"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-mas"/></svg> Añadir opinión</button>
         </div>
       </details>
 
-      <details class="bloque plegable" id="financiacion-bloque">
+      <details class="bloque plegable con-estado" id="tienda-foto-bloque">
         <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-tarjeta"/></svg></span>Financiación</h2>
+          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-camara"/></svg></span>Foto de la tienda</h2>
           <span class="plegable__estado"></span>
         </summary>
         <div class="plegable__cuerpo">
+          <p class="bloque__ayuda" id="tienda-foto-ayuda">Si no hay destacado.</p>
+          <img class="tienda-foto" id="tienda-foto-img" alt="Foto de la tienda que sale ahora">
+          <input type="file" id="tienda-foto-camara" class="visualmente-oculto" accept="image/*" capture="environment" tabindex="-1">
+          <input type="file" id="tienda-foto-galeria" class="visualmente-oculto" accept="image/*" tabindex="-1">
+          <div class="foto-acciones">
+            <button type="button" class="boton boton--linea" id="tienda-foto-hacer"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-camara"/></svg> Hacer foto</button>
+            <button type="button" class="boton-texto" id="tienda-foto-elegir">Elegir de la galería</button>
+          </div>
+          <p class="foto-estado" id="tienda-foto-estado" role="status"></p>
+        </div>
+      </details>
+    </section>
+
+    <!-- Opiniones: opiniones, financiación, marcas y año (id «confianza»); todo a la vista, se edita en el sitio -->
+    <section class="hoja" id="p-confianza" role="tabpanel" aria-labelledby="t-confianza" tabindex="-1" hidden>
+      <h1 class="cartel hoja__titulo">Opiniones</h1>
+
+      <section class="bloque con-estado" id="opiniones-bloque" aria-labelledby="opiniones-titulo">
+        <div class="bloque__cab">
+          <h2 class="bloque__titulo" id="opiniones-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-estrella"/></svg></span>Opiniones de Google</h2>
+          <span class="plegable__estado"></span>
+        </div>
+        <div class="op-cifras">
+          <label class="campo campo--linea">
+            <span class="campo__etiqueta">Nota</span>
+            <input type="text" id="op-nota" inputmode="decimal" maxlength="3" autocomplete="off" placeholder="4,4" aria-describedby="op-nota-error">
+          </label>
+          <label class="campo campo--linea">
+            <span class="campo__etiqueta">Nº de opiniones en Google</span>
+            <input type="text" id="op-total" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="28" aria-describedby="op-total-error">
+          </label>
+          <span class="campo__error" id="op-nota-error" hidden></span>
+          <span class="campo__error" id="op-total-error" hidden></span>
+        </div>
+        <h3 class="op-subtitulo" id="op-subtitulo">Citas que salen en la web</h3>
+        <button type="button" class="boton boton--linea boton--ancho" id="op-anadir"><svg class="icono" aria-hidden="true" focusable="false"><use href="#i-mas"/></svg> Añadir opinión</button>
+        <ol class="opiniones-lista" id="op-lista" aria-labelledby="op-subtitulo"></ol>
+        <p class="bloque__ayuda">Las que dejes sin texto no salen.</p>
+      </section>
+
+      <div class="confianza-rejilla">
+        <section class="bloque con-estado" id="financiacion-bloque" aria-labelledby="fin-titulo">
+          <div class="bloque__cab">
+            <h2 class="bloque__titulo" id="fin-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-tarjeta"/></svg></span>Financiación</h2>
+          </div>
           <label class="interruptor interruptor--caja">
             <input type="checkbox" role="switch" id="fin-activa">
             <span class="interruptor__texto">Ofrecemos financiación</span>
@@ -416,15 +409,12 @@
             <span class="campo__ayuda" id="fin-ayuda">Solo si es seguro. Ej.: «Hasta 12 meses sin intereses».</span>
             <input type="text" id="fin-texto" maxlength="80" autocomplete="off" aria-describedby="fin-ayuda">
           </label>
-        </div>
-      </details>
+        </section>
 
-      <details class="bloque plegable" id="marcas-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-etiqueta"/></svg></span>Marcas</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
+        <section class="bloque con-estado" id="marcas-bloque" aria-labelledby="marcas-titulo">
+          <div class="bloque__cab">
+            <h2 class="bloque__titulo" id="marcas-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-etiqueta"/></svg></span>Marcas</h2>
+          </div>
           <ul class="marcas-lista" id="marcas-lista" aria-label="Marcas que salen en la web"></ul>
           <div class="fila-anadir">
             <label class="campo">
@@ -434,23 +424,20 @@
             </label>
             <button type="button" class="boton boton--noche" id="marca-anadir">Añadir</button>
           </div>
-        </div>
-      </details>
+        </section>
 
-      <details class="bloque plegable" id="desde-bloque">
-        <summary class="plegable__cab">
-          <h2 class="bloque__titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-calendario"/></svg></span>Desde qué año</h2>
-          <span class="plegable__estado"></span>
-        </summary>
-        <div class="plegable__cuerpo">
+        <section class="bloque con-estado" id="desde-bloque" aria-labelledby="desde-titulo">
+          <div class="bloque__cab">
+            <h2 class="bloque__titulo" id="desde-titulo"><span class="bloque__icono" aria-hidden="true"><svg class="icono" focusable="false"><use href="#i-calendario"/></svg></span>Desde qué año</h2>
+          </div>
           <label class="campo campo--corto">
             <span class="campo__etiqueta">Año en que abrió</span>
             <input type="text" id="desde" inputmode="numeric" maxlength="4" autocomplete="off" aria-describedby="desde-ayuda desde-error">
             <span class="campo__ayuda" id="desde-ayuda">Sale como «Desde 2003».</span>
             <span class="campo__error" id="desde-error" hidden></span>
           </label>
-        </div>
-      </details>
+        </section>
+      </div>
     </section>
 
   </main>
@@ -743,15 +730,16 @@
     <symbol id="i-quitar-reserva" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4Z"/><path d="M9.5 7.5l5 5M14.5 7.5l-5 5"/></symbol>
     <symbol id="i-vendido" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"/><path d="M8 12.5l3 3 5-6"/></symbol>
     <symbol id="i-editar" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M13.5 6.5l4 4"/></symbol>
+    <symbol id="i-tienda" viewBox="0 0 24 24"><path d="M4 9.5 5.5 4h13L20 9.5"/><path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5.5 12v8h13v-8"/><path d="M10 20v-4.5h4V20"/></symbol>
     <symbol id="i-ojo" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></symbol>
     <symbol id="i-papelera" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
     <symbol id="i-volver"viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
   </svg>
 
-  <script src="js/config.js?v=20261123-12" defer></script>
-  <script src="js/contenido.js?v=20261123-12" defer></script>
-  <script src="js/datos.js?v=20261123-12" defer></script>
-  <script src="js/escaparate.js?v=20261123-12" defer></script>
-  <script src="js/admin.js?v=20261123-12" defer></script>
+  <script src="js/config.js?v=20261123-14" defer></script>
+  <script src="js/contenido.js?v=20261123-14" defer></script>
+  <script src="js/datos.js?v=20261123-14" defer></script>
+  <script src="js/escaparate.js?v=20261123-14" defer></script>
+  <script src="js/admin.js?v=20261123-14" defer></script>
 </body>
 </html>

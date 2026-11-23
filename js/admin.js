@@ -18,7 +18,7 @@
   var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
   var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261123-12';
+  var V = '20261123-14';
 
   var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
   var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
@@ -61,6 +61,9 @@
   // Los avisos normales se van solos a los 3 s, sin botón y sin bloquear lo que hay debajo.
   // opciones: { error: true } se queda hasta cerrarlo («Cerrar»); { accion: { texto, hacer } } añade
   // un botón (Deshacer) y dura 5 s
+  document.addEventListener('input', function () {
+    if (toast.classList.contains('toast--error') && !accionToast) esconderToast();
+  });
   function avisar(texto, opciones) {
     opciones = opciones || {};
     clearTimeout(temporizadorToast);
@@ -78,7 +81,7 @@
       toast.hidden = false;
     }
     anunciar(texto, !!opciones.error);
-    if (!opciones.error) temporizadorToast = setTimeout(esconderToast, opciones.duracion || (accionToast ? 5000 : 3000));
+    if (!opciones.error) temporizadorToast = setTimeout(esconderToast, opciones.duracion || (accionToast ? 10000 : 3000));
   }
   $('toast-cerrar').addEventListener('click', esconderToast);
   $('toast-accion').addEventListener('click', function () {
@@ -342,9 +345,13 @@
         n = $('tramos').children.length;
         return n ? [n === 1 ? '1 horario' : n + ' horarios', 'info'] : ['Sin horario', 'apagado'];
       case 'opiniones-bloque':
-        n = $('op-lista').children.length;
-        return [(contenido.opiniones.nota !== null ? '★ ' + textoNota(contenido.opiniones.nota) + ' · ' : '') +
-          (n === 1 ? '1 opinión' : n + ' opiniones'), 'info'];
+        // Las citas que salen (con texto) van en el subtítulo de la lista; aquí, la nota y el total de Google
+        n = Array.prototype.filter.call($('op-lista').querySelectorAll('.opinion__texto'), function (t) { return t.value.trim(); }).length;
+        $('op-subtitulo').textContent = 'Citas que salen en la web (' + n + ')';
+        a = contenido.opiniones;
+        t = (a.nota !== null ? '★ ' + textoNota(a.nota) : '') + (a.nota !== null && a.total !== null ? ' · ' : '') +
+          (a.total !== null ? a.total + ' en Google' : '');
+        return [t, 'info'];
       case 'financiacion-bloque':
         return $('fin-activa').checked ? ['✓ Sí', 'activo'] : ['No', 'apagado'];
       case 'marcas-bloque':
@@ -357,7 +364,7 @@
   }
   function pintarEstados() {
     if (!listo) return;
-    Array.prototype.forEach.call(document.querySelectorAll('.plegable[id]'), function (b) {
+    Array.prototype.forEach.call(document.querySelectorAll('.con-estado[id]'), function (b) {
       var caja = b.querySelector('.plegable__estado');
       if (!caja) return;
       var e = b.querySelector('[aria-invalid="true"], .campo__error:not([hidden]), .tramo__error:not(:empty)')
@@ -1581,22 +1588,16 @@
     return l;
   }
 
+  // Cada horario es una fila editable directamente: días, horas (y la tarde si cierra a mediodía), «Cerrado»
+  // y la papelera al lado. Las clases (.dia input, .tramo__cerrado, .tramo__tarde, .t1-abre…) las lee leerTramos
   function crearTramo(tramo) {
     var dias = C.leerDias(tramo.dias);
     var horas = C.leerHoras(tramo.horas);
     var cerrado = horas.length === 0;
     var li = el('li', 'tramo');
-    var pl = el('details', 'tramo__plegable');
-    var cab = el('summary', 'tramo__cab');
-    cab.appendChild(el('strong', 'tramo__resumen-dias', ''));
-    cab.appendChild(el('span', 'tramo__resumen-horas', ''));
-    pl.appendChild(cab);
-    var cuerpo = el('div', 'tramo__cuerpo');
-    pl.appendChild(cuerpo);
-    li.appendChild(pl);
 
     var fs = el('fieldset', 'tramo__dias');
-    fs.appendChild(el('legend', 'campo__etiqueta', 'Días'));
+    fs.appendChild(el('legend', 'visualmente-oculto', 'Días de este horario'));
     var fila = el('div', 'dias');
     ABREV.forEach(function (a, d) {
       var l = el('label', 'dia');
@@ -1607,42 +1608,48 @@
       l.appendChild(c);
       var s = el('span', null, a);
       s.setAttribute('aria-hidden', 'true');
+      s.dataset.corto = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'][d]; // en el móvil, abreviatura corta
       l.appendChild(s);
       l.appendChild(el('span', 'visualmente-oculto', C.NOMBRES_DIA[d]));
       fila.appendChild(l);
     });
     fs.appendChild(fila);
-    cuerpo.appendChild(fs);
+    li.appendChild(fs);
 
-    cuerpo.appendChild(casilla('Cerrado esos días', 'tramo__cerrado', cerrado));
-
+    var horasCaja = el('div', 'tramo__horas');
     var abierto = el('div', 'tramo__abierto');
     var t1 = horas[0] || [600, 810];
     var t2 = horas[1] || [1020, 1230];
     var turno1 = el('div', 'turno');
-    turno1.appendChild(el('span', 'turno__nombre', 'Abre'));
     turno1.appendChild(campoHora('de', C.hhmm(t1[0]), 't1-abre'));
     turno1.appendChild(campoHora('a', C.hhmm(t1[1]), 't1-cierra'));
     abierto.appendChild(turno1);
-    abierto.appendChild(casilla('Cierra a mediodía y vuelve a abrir por la tarde', 'tramo__tarde', horas.length > 1));
     var turno2 = el('div', 'turno turno--tarde');
-    turno2.appendChild(el('span', 'turno__nombre', 'Por la tarde'));
-    turno2.appendChild(campoHora('de', C.hhmm(t2[0]), 't2-abre'));
+    turno2.appendChild(campoHora('y de', C.hhmm(t2[0]), 't2-abre'));
     turno2.appendChild(campoHora('a', C.hhmm(t2[1]), 't2-cierra'));
     turno2.hidden = horas.length < 2;
     abierto.appendChild(turno2);
     abierto.hidden = cerrado;
-    cuerpo.appendChild(abierto);
+    horasCaja.appendChild(abierto);
+    var opciones = el('div', 'tramo__opciones');
+    opciones.appendChild(casilla('Abre por la tarde', 'tramo__tarde', horas.length > 1));
+    opciones.appendChild(casilla('Cerrado', 'tramo__cerrado', cerrado));
+    horasCaja.appendChild(opciones);
+    li.appendChild(horasCaja);
 
-    cuerpo.appendChild(el('p', 'tramo__error', ''));
-    cuerpo.appendChild(el('p', 'tramo__aviso', ''));
+    var quitar = el('button', 'tramo__quitar');
+    quitar.type = 'button';
+    quitar.setAttribute('aria-label', 'Quitar este horario');
+    quitar.title = 'Quitar';
+    quitar.appendChild(iconoSprite('i-papelera'));
+    li.appendChild(quitar);
+
+    li.appendChild(el('p', 'tramo__error', ''));
+    li.appendChild(el('p', 'tramo__aviso', ''));
     // Lo guardado no se entiende (p. ej. «10-13», sin minutos o cruzando la medianoche): se avisa
     var horasTexto = String(tramo.horas || '').trim();
     var entendido = /^cerrado$/i.test(horasTexto) || (horas.length && C.componerHoras(horas) === horasTexto.replace(/\s*-\s*/g, '–'));
     if ((horasTexto && !entendido) || (String(tramo.dias || '').trim() && !dias.length)) li.dataset.formatoRaro = '1';
-    var quitar = el('button', 'boton-texto tramo__quitar', 'Quitar este horario');
-    quitar.type = 'button';
-    cuerpo.appendChild(quitar);
     return li;
   }
 
@@ -1681,20 +1688,16 @@
       else if (tarde && (a2 === null || c2 === null || a2 >= c2)) error = 'Por la tarde, la hora de cerrar tiene que ser después de la de abrir.';
       else if (tarde && a2 < c1) error = 'La tarde tiene que empezar después de cerrar a mediodía.';
       li.querySelector('.tramo__error').textContent = error;
-      // Resumen de la tarjeta; con un error se abre y lo dice
-      li.querySelector('.tramo__resumen-dias').textContent = dias.length ? C.componerDias(dias) : 'Sin días';
-      if (error) li.querySelector('.tramo__plegable').open = true;
-      if (error) { hayError = true; li.querySelector('.tramo__resumen-horas').textContent = '⚠ Revisar'; return; }
-      if (cerrado) {
-        li.querySelector('.tramo__resumen-horas').textContent = 'Cerrado';
-        salida.push({ dias: C.componerDias(dias), horas: 'Cerrado' });
-        return;
-      }
+      // La papelera dice qué horario quita
+      li.querySelector('.tramo__quitar').setAttribute('aria-label', 'Quitar el horario' + (dias.length ? ' de ' + C.componerDias(dias).toLowerCase() : ''));
+      li.querySelector('.tramo__tarde').closest('.casilla').hidden = cerrado;
+      if (error) { hayError = true; return; }
+      if (cerrado) { salida.push({ dias: C.componerDias(dias), horas: 'Cerrado' }); return; }
       var tramos = [[a1, c1]];
       if (tarde) tramos.push([a2, c2]);
-      li.querySelector('.tramo__resumen-horas').textContent = C.componerHoras(tramos);
       salida.push({ dias: C.componerDias(dias), horas: C.componerHoras(tramos) });
     });
+    pintarAtajos();
     return { tramos: salida, hayError: hayError };
   }
 
@@ -1715,7 +1718,7 @@
     if (respetarFoco && (ol.contains(document.activeElement) || ol.querySelector('.tramo__error:not(:empty)'))) return;
     ol.textContent = '';
     contenido.tienda.horario.forEach(function (t) { ol.appendChild(crearTramo(t)); });
-    leerTramos(); // rellena el resumen de cada tarjeta
+    leerTramos(); // avisos de formato y atajos ya puestos
     pintarPreviaHorario(contenido.tienda.horario);
   }
 
@@ -1732,21 +1735,71 @@
   $('tramos').addEventListener('click', function (e) {
     var b = e.target.closest('.tramo__quitar');
     if (!b) return;
-    b.closest('.tramo').remove();
+    var previo = copiar(contenido.tienda.horario);
+    var fila = b.closest('.tramo');
+    var pos = Array.prototype.indexOf.call($('tramos').children, fila);
+    fila.remove();
     var r = leerTramos();
     pintarPreviaHorario(r.tramos);
-    if (!r.hayError) guardarAjustes(function (c) { c.tienda.horario = r.tramos; }).then(function (x) { if (x.ok) avisar('Horario quitado'); });
+    pintarEstados();
+    if (!r.hayError) guardarAjustes(function (c) { c.tienda.horario = r.tramos; }).then(function (x) {
+      // No se ha podido guardar: la fila vuelve (se pinta lo guardado de verdad)
+      if (!x.ok) { pintarHorario(false); pintarEstados(); return; }
+      avisar('Horario quitado', { accion: { texto: 'Deshacer', hacer: function () {
+        guardarAjustes(function (c) { c.tienda.horario = previo; }).then(function (y) {
+          pintarHorario(false);
+          pintarEstados();
+          var vuelta = $('tramos').children[pos];
+          if (vuelta) vuelta.querySelector('.dia input').focus();
+          if (y.ok) avisar('Horario recuperado');
+        });
+      } } });
+    });
     $('anadir-tramo').focus();
   });
-  $('anadir-tramo').addEventListener('click', function () {
+  // «+ Lunes a viernes», «+ Sábados», «+ Domingos» (con sus días ya marcados, se guarda al momento) y «+ Otro»
+  // Horas de la última fila (para que la nueva salga igual); sin filas, el horario partido de siempre
+  function horasDeLaUltima() {
+    var ult = $('tramos').lastElementChild;
+    if (!ult) return '10:00–13:30 y 17:00–20:30';
+    if (ult.querySelector('.tramo__cerrado').checked) return 'Cerrado';
+    var t = [[minutos(ult.querySelector('.t1-abre input').value), minutos(ult.querySelector('.t1-cierra input').value)]];
+    if (ult.querySelector('.tramo__tarde').checked) t.push([minutos(ult.querySelector('.t2-abre input').value), minutos(ult.querySelector('.t2-cierra input').value)]);
+    var bien = t.every(function (x) { return x[0] !== null && x[1] !== null && x[0] < x[1]; });
+    return bien ? C.componerHoras(t) : '10:00–13:30 y 17:00–20:30';
+  }
+  // «+ Sábados»… desactivado si ya hay una fila con exactamente esos días
+  function pintarAtajos() {
+    var filas = Array.prototype.map.call($('tramos').children, function (li) {
+      return Array.prototype.filter.call(li.querySelectorAll('.dia input'), function (c) { return c.checked; })
+        .map(function (c) { return c.value; }).join(',');
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-anadir-dias]'), function (b) {
+      if (!b.dataset.anadirDias) return;
+      var ya = filas.indexOf(C.leerDias(b.dataset.anadirDias).sort().join(',')) !== -1;
+      b.disabled = ya;
+      if (ya) { b.title = 'Ya está'; b.setAttribute('aria-describedby', 'atajo-ya'); }
+      else { b.removeAttribute('title'); b.removeAttribute('aria-describedby'); }
+    });
+  }
+  function anadirTramo(textoDias) {
     if ($('tramos').children.length >= 7) { avisar('Como mucho, siete horarios distintos.', { error: true }); return; }
-    var li = crearTramo({ dias: '', horas: '10:00–13:30' });
+    var li = crearTramo({ dias: textoDias, horas: horasDeLaUltima() });
     $('tramos').appendChild(li);
-    li.querySelector('.tramo__plegable').open = true;
-    li.querySelector('.tramo__resumen-dias').textContent = 'Horario nuevo';
-    li.querySelector('.tramo__error').textContent = 'Marca los días de este horario.';
-    pintarEstados();
-    li.querySelector('.dia input').focus();
+    var r = leerTramos();
+    pintarPreviaHorario(r.tramos);
+    if (!textoDias) {
+      li.querySelector('.tramo__error').textContent = 'Marca los días de este horario.';
+      pintarEstados();
+      li.querySelector('.dia input').focus();
+      return;
+    }
+    li.dataset.tocado = '1';
+    guardarHorario();
+    li.querySelector('.t1-abre input').focus();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-anadir-dias]'), function (b) {
+    b.addEventListener('click', function () { anadirTramo(b.dataset.anadirDias); });
   });
 
   // ---------- Textos de la portada (cada campo se guarda por separado) ----------
@@ -2062,10 +2115,19 @@
     };
   }
 
+  // En un sorteo, «Enlace a las bases» y «Hasta» van a la vista; en lo demás, dentro del plegable
+  function colocarCamposSorteo(tipo) {
+    var caja = $('anuncio-sorteo-campos');
+    var destino = $(tipo === 'sorteo' ? 'anuncio-hueco-visible' : 'anuncio-hueco-plegado');
+    if (caja.parentNode !== destino && !caja.contains(document.activeElement)) destino.appendChild(caja);
+    $('anuncio-pliegue-titulo').textContent = tipo === 'sorteo' ? 'Foto y botón (opcional)' : 'Fecha, bases, foto y botón (opcional)';
+  }
   function pintarPreviaAnuncio() {
     var r = leerAnuncio();
     var a = r.datos;
     $('anuncio-nota-sorteo').hidden = a.tipo !== 'sorteo';
+    colocarCamposSorteo(a.tipo);
+    $('anuncio-nota-publicar').hidden = !$('anuncio-activo').checked;
     contar($('anuncio-titulo'), $('anuncio-titulo-cuenta'), C.LIMITES.anuncioTitulo);
     contar($('anuncio-texto'), $('anuncio-texto-cuenta'), C.LIMITES.anuncioTexto);
     var caja = $('anuncio-previa');
@@ -2138,8 +2200,16 @@
     guardarAnuncioYa(si ? 'Anuncio en la web' : 'Anuncio quitado de la web');
   });
   $('anuncio-tipos').addEventListener('change', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
+  // Apagado: se guarda solo al hacer una pausa (borrador). Encendido: lo que se ve en la web cambia al
+  // terminar de escribir (al salir del campo), no a mitad de una palabra
   ['anuncio-titulo', 'anuncio-texto', 'anuncio-boton', 'anuncio-enlace', 'anuncio-hasta', 'anuncio-bases'].forEach(function (id) {
-    $(id).addEventListener('input', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
+    $(id).addEventListener('input', function () {
+      pintarPreviaAnuncio();
+      if (!$('anuncio-activo').checked) guardarAnuncio();
+    });
+    $(id).addEventListener('change', function () {
+      if ($('anuncio-activo').checked) guardadoForm(guardarAnuncioYa(null));
+    });
   });
   $('anuncio-hasta').addEventListener('change', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
 
@@ -2232,49 +2302,34 @@
 
   function textoNota(n) { return n === null ? '' : String(n).replace('.', ','); }
 
-  function resumirOpinion(li) {
-    var t = li.querySelector('.opinion__texto').value.replace(/\s+/g, ' ').trim();
-    var a = li.querySelector('.opinion__autor').value.replace(/\s+/g, ' ').trim();
-    li.querySelector('.opinion__resumen-texto').textContent = t ? '«' + t + '»' : 'Opinión sin texto (no sale)';
-    li.querySelector('.opinion__resumen-autor').textContent = a;
+  function numerarOpiniones() {
+    Array.prototype.forEach.call($('op-lista').children, function (li, i) {
+      var a = li.querySelector('.opinion__autor').value.trim();
+      li.querySelector('.opinion__texto').setAttribute('aria-label', 'Texto de la opinión ' + (i + 1));
+      li.querySelector('.opinion__autor').setAttribute('aria-label', 'Nombre de quien escribió la opinión ' + (i + 1));
+      li.querySelector('.opinion__quitar').setAttribute('aria-label', 'Quitar la opinión ' + (i + 1) + (a ? ' (' + a + ')' : ''));
+    });
   }
   function crearOpinion(o) {
     var li = el('li', 'opinion');
-    var pl = el('details', 'opinion__plegable');
-    var cab = el('summary', 'opinion__cab');
-    var res = el('span', 'opinion__resumen');
-    res.appendChild(el('span', 'opinion__resumen-texto', ''));
-    res.appendChild(el('span', 'opinion__resumen-autor', ''));
-    cab.appendChild(res);
-    cab.appendChild(el('span', 'opinion__editar', 'Editar'));
-    pl.appendChild(cab);
-    var cuerpo = el('div', 'opinion__cuerpo');
-    pl.appendChild(cuerpo);
-    li.appendChild(pl);
-    var l1 = el('label', 'campo');
-    l1.appendChild(el('span', 'campo__etiqueta', 'Lo que dice'));
     var t = el('textarea', 'opinion__texto');
-    t.rows = 3;
+    t.rows = 2;
     t.maxLength = C.LIMITES.opinion;
     t.value = o.texto;
-    l1.appendChild(t);
-    var cuenta = el('span', 'campo__cuenta', '');
-    l1.appendChild(cuenta);
-    contar(t, cuenta, C.LIMITES.opinion);
-    cuerpo.appendChild(l1);
-    var l2 = el('label', 'campo');
-    l2.appendChild(el('span', 'campo__etiqueta', 'Nombre de quien la escribió'));
+    t.placeholder = 'Lo que dice';
+    li.appendChild(t);
     var a = el('input', 'opinion__autor');
     a.type = 'text';
     a.maxLength = C.LIMITES.autor;
     a.autocomplete = 'off';
     a.value = o.autor;
-    l2.appendChild(a);
-    cuerpo.appendChild(l2);
-    var quitar = el('button', 'boton-texto opinion__quitar', 'Quitar esta opinión');
+    a.placeholder = 'Nombre (Brian L.)';
+    li.appendChild(a);
+    var quitar = el('button', 'opinion__quitar');
     quitar.type = 'button';
-    cuerpo.appendChild(quitar);
-    resumirOpinion(li);
+    quitar.title = 'Quitar';
+    quitar.appendChild(iconoSprite('i-papelera'));
+    li.appendChild(quitar);
     return li;
   }
 
@@ -2313,6 +2368,7 @@
     if (!(respetarFoco && ol.contains(document.activeElement))) {
       ol.textContent = '';
       contenido.opiniones.lista.forEach(function (o) { ol.appendChild(crearOpinion(o)); });
+      numerarOpiniones();
     }
     $('fin-activa').checked = contenido.financiacion.activa;
     poner('fin-texto', contenido.financiacion.texto);
@@ -2348,18 +2404,33 @@
   $('op-nota').addEventListener('input', guardarNota);
   $('op-total').addEventListener('input', guardarTotal);
   $('op-lista').addEventListener('input', function (e) {
-    var t = e.target.closest('.opinion__texto');
-    if (t) contar(t, t.parentNode.querySelector('.campo__cuenta'), C.LIMITES.opinion);
-    var li = e.target.closest('.opinion');
-    if (li) resumirOpinion(li);
+    if (e.target.closest('.opinion__autor')) numerarOpiniones();
     guardarLista();
   });
   $('op-lista').addEventListener('click', function (e) {
     var b = e.target.closest('.opinion__quitar');
     if (!b) return;
-    b.closest('.opinion').remove();
+    var previo = copiar(contenido.opiniones.lista);
+    var fila = b.closest('.opinion');
+    var pos = Array.prototype.indexOf.call($('op-lista').children, fila);
+    var enBlanco = !fila.querySelector('.opinion__texto').value.trim(); // sin texto no se guarda: no hay nada que deshacer
+    fila.remove();
+    numerarOpiniones();
+    pintarEstados();
+    if (enBlanco) { $('op-anadir').focus(); return; }
     var lista = leerOpiniones();
-    guardarAjustes(function (c) { c.opiniones.lista = lista; }).then(function (r) { if (r.ok) avisar('Opinión quitada'); });
+    guardarAjustes(function (c) { c.opiniones.lista = lista; }).then(function (r) {
+      if (!r.ok) { pintarConfianza(false); pintarEstados(); return; }
+      avisar('Opinión quitada', { accion: { texto: 'Deshacer', hacer: function () {
+        guardarAjustes(function (c) { c.opiniones.lista = previo; }).then(function (y) {
+          pintarConfianza(false);
+          pintarEstados();
+          var vuelta = $('op-lista').children[pos];
+          if (vuelta) vuelta.querySelector('.opinion__texto').focus();
+          if (y.ok) avisar('Opinión recuperada');
+        });
+      } } });
+    });
     $('op-anadir').focus();
   });
   $('op-anadir').addEventListener('click', function () {
@@ -2367,9 +2438,10 @@
       avisar('Como mucho ' + C.LIMITES.opiniones + ' opiniones. Quita alguna para añadir otra.', { error: true });
       return;
     }
+    // La nueva, arriba (justo debajo del botón) y con el foco en su texto
     var li = crearOpinion({ texto: '', autor: '' });
-    $('op-lista').appendChild(li);
-    li.querySelector('.opinion__plegable').open = true;
+    $('op-lista').insertBefore(li, $('op-lista').firstChild);
+    numerarOpiniones();
     pintarEstados();
     li.querySelector('.opinion__texto').focus();
   });

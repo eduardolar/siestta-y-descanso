@@ -83,7 +83,7 @@
 /* ---------- Pestañas: en el móvil, barra fija abajo con icono y etiqueta corta ---------- */
 .pestanas {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   background: var(--blanco); border-top: 1px solid var(--linea);
   padding-bottom: env(safe-area-inset-bottom);
   box-shadow: 0 -4px 16px rgb(26 20 20 / .06);
@@ -773,7 +773,7 @@ button.boton--peligro:hover { background: var(--rojo); }
 @media (min-width: 1040px) {
   .lista { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   /* Horario, Contacto y Opiniones: una columna de tarjetas plegables, no muy ancha (se lee mejor) */
-  #p-horario, #p-contacto, #p-confianza { max-width: 760px; }
+  #p-horario, #p-confianza { max-width: 960px; }
 }
 
 /* En escritorio la ficha es una ficha: foto a la izquierda, datos y vista previa, sin scroll */
@@ -865,44 +865,83 @@ button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; 
 /* Producto destacado: tarjetas pequeñas en rejilla, no una lista larga */
 .destacados { grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
 
-/* Horario y opiniones: cada uno, una tarjeta pequeña plegada; se toca para editarla */
-.tramo, .opinion { display: block; padding: 0; background: var(--gris); border-radius: 8px; border-left: 4px solid var(--tinta); }
-.tramo__plegable > summary, .opinion__plegable > summary { list-style: none; cursor: pointer; }
-.tramo__plegable > summary::-webkit-details-marker, .opinion__plegable > summary::-webkit-details-marker { display: none; }
-.tramo__cab, .opinion__cab {
-  display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border-radius: 0 8px 8px 0;
+/* Cabecera de las tarjetas que no se pliegan: título y, a la derecha, su estado */
+.bloque__cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.bloque__cab .bloque__titulo { min-width: 0; }
+
+/* ---------- Horario: cada horario, una fila editable (días · horas · papelera) ---------- */
+.tramo {
+  display: grid; gap: 8px 12px; align-items: center; padding: 10px 10px 10px 12px;
+  background: var(--gris); border-radius: 8px; border-left: 4px solid var(--tinta);
+  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-areas: "dias quitar" "horas horas" "error error" "aviso aviso";
 }
-.tramo__cab:hover, .opinion__cab:hover { background: var(--gris-2); }
-.tramo__cab:focus-visible, .opinion__cab:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
-.tramo__cab::after, .opinion__cab::after {
-  content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 auto;
-  border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; transform: translateY(-3px) rotate(45deg);
+.tramo__dias { grid-area: dias; margin: 0; padding: 0; border: 0; min-width: 0; }
+.tramo .dias { margin-top: 0; gap: 3px; }
+.tramo .dia span[aria-hidden] { min-height: 44px; padding: 2px 0; font-size: .82rem; border-radius: 4px; }
+.tramo__horas { grid-area: horas; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-width: 0; }
+.tramo__abierto { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.tramo__abierto[hidden] { display: none; }
+.tramo .turno { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+.tramo .turno[hidden] { display: none; }
+.tramo .hora { flex: 0 1 auto; max-width: none; }
+.panel .tramo .hora input { width: 7.2rem; min-height: 44px; padding: 6px 8px; }
+.tramo__opciones { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.tramo .casilla { min-height: 44px; font-size: .92rem; }
+.tramo .casilla[hidden] { display: none; }
+.tramo__error { grid-area: error; }
+.tramo__aviso { grid-area: aviso; }
+.tramo__quitar, .opinion__quitar {
+  grid-area: quitar; justify-self: end; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
+  background: var(--blanco); color: var(--rojo); border: 2px solid var(--linea); border-radius: 6px;
 }
-.tramo__plegable[open] > .tramo__cab::after, .opinion__plegable[open] > .opinion__cab::after { transform: translateY(2px) rotate(-135deg); }
-.tramo__cab { flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
-.tramo__resumen-dias { font-weight: 800; }
-.tramo__resumen-horas { color: var(--tinta-suave); font-weight: 600; }
-.tramo__cuerpo, .opinion__cuerpo { display: grid; gap: 10px; padding: 4px 12px 12px; }
-.tramo .casilla { min-height: 44px; }
-.opinion__resumen { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
-.opinion__resumen-texto {
-  font-weight: 600; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+.tramo__quitar .icono, .opinion__quitar .icono { width: 20px; height: 20px; }
+.tramo__quitar:hover, .opinion__quitar:hover { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+.tramo__quitar:focus-visible, .opinion__quitar:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+.anadir-tramo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tramo__opciones { flex: 1 1 100%; }
+@media (max-width: 520px) {
+  /* Móvil: los días a todo el ancho, como un control segmentado (7 × 40 px), con «Lu Ma Mi…»; horas y papelera debajo.
+     El nombre entero del día lo leen los lectores de pantalla */
+  .tramo { padding: 10px 8px; grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "dias dias" "horas quitar" "error error" "aviso aviso"; }
+  .tramo .dias { grid-template-columns: repeat(7, minmax(40px, 1fr)); gap: 0; }
+  .tramo .dia span[aria-hidden] { font-size: 0; border-radius: 0; margin-left: -1px; }
+  .tramo .dia:first-child span[aria-hidden] { border-radius: 6px 0 0 6px; margin-left: 0; }
+  .tramo .dia:last-child span[aria-hidden] { border-radius: 0 6px 6px 0; }
+  .tramo .dia span[aria-hidden]::after { content: attr(data-corto); font-size: .9rem; }
+  .tramo__quitar { align-self: start; }
 }
-.opinion__resumen-autor { font-size: .88rem; color: var(--tinta-suave); }
-.opinion__resumen-autor:empty { display: none; }
-.opinion__resumen-autor::before { content: "— "; }
-.opinion__editar {
-  flex: none; font-size: .88rem; font-weight: 700; color: var(--tinta);
-  text-decoration: underline; text-decoration-color: var(--rojo); text-decoration-thickness: 2px; text-underline-offset: 3px;
+.rapido:disabled { opacity: .45; cursor: not-allowed; background: var(--blanco); color: var(--tinta-suave); border-style: dashed; }
+.rapido:disabled:hover { background: var(--blanco); color: var(--tinta-suave); border-color: var(--linea); }
+.op-subtitulo { font: 800 1.05rem/1.2 var(--letra-titulo); letter-spacing: -.01em; color: var(--tinta); }
+/* Móvil: el aviso de error va arriba, bajo la cabecera, para no tapar el campo que se corrige (con el teclado abierto) */
+@media (max-width: 719px) {
+  .toast--error { inset: calc(var(--cab-alto) + 8px + env(safe-area-inset-top)) 12px auto 12px; }
 }
-.opinion__plegable[open] .opinion__editar { display: none; }
-.opinion .campo__etiqueta { font-size: .92rem; }
-.opinion__quitar { justify-self: start; }
-@media (min-width: 520px) {
-  .turno { flex-wrap: nowrap; }
-  .turno__nombre { flex: 0 0 6.5rem; }
+.anadir-tramo__texto { font-weight: 700; }
+/* En pantallas anchas, días y horas en la misma línea */
+@media (min-width: 900px) {
+  .tramo { grid-template-columns: 19rem minmax(0, 1fr) 44px; grid-template-areas: "dias horas quitar" "error error error" "aviso aviso aviso"; }
 }
+
+/* ---------- Opiniones: texto y autor editables en la fila, papelera al lado ---------- */
+.op-cifras { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.op-cifras .campo__error { flex-basis: 100%; }
+.campo--linea { display: flex; align-items: center; gap: 8px; }
+.panel .campo--linea input { width: 5.5rem; }
+.opinion {
+  display: grid; gap: 8px; align-items: start; padding: 10px; background: var(--gris); border-radius: 8px;
+  border-left: 4px solid var(--tinta);
+  grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "texto texto" "autor quitar";
+}
+.opinion__texto { grid-area: texto; }
+.opinion__autor { grid-area: autor; }
+.panel .opinion__texto { min-height: 4.6em; field-sizing: content; } /* crece con el texto, sin cortarlo */
+@media (min-width: 900px) {
+  .opinion { grid-template-columns: minmax(0, 1fr) 12rem 44px; grid-template-areas: "texto autor quitar"; }
+}
+.confianza-rejilla { display: grid; gap: 0 16px; }
+@media (min-width: 900px) { .confianza-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
 /* Fotos de la ficha: con ratón la caja y «+» abren la galería (varias a la vez); en el móvil, la cámara */
 .solo-raton { display: none; }
 @media (hover: hover) and (pointer: fine) {
