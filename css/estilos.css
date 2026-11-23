@@ -1022,6 +1022,11 @@ html.skin .pastilla--oferta { background: var(--s-etiqueta); color: var(--s-etiq
 html.skin.tema--rebajas .pastilla--oferta { box-shadow: inset 0 0 0 2px #7d1220; }
 html.skin .tira-expo { background: var(--s-deco), var(--s-barra); color: var(--s-barra-texto); }
 html.skin .tira-expo__nota { color: var(--s-barra-texto); }
+/* Banda «Este sí»: el fondo oscuro del tema y su dibujo; números y «Este sí» con el acento (dorado en Navidad) */
+html.skin .siesta { background: var(--s-deco), var(--s-barra); }
+html.skin .frase em, html.skin .pasos__num { color: var(--s-banda-acento, var(--amarillo)); }
+html.skin.tema--navidad { --s-banda-acento: #e6c977; }
+html.skin.tema--feria .pasos li + li { border-left-color: rgb(255 212 0 / .35); }
 html.skin .filtro--ofertas { color: var(--s-marca); border-color: var(--s-marca); }
 html.skin .filtro--ofertas[aria-pressed="true"] { background: var(--s-marca); color: #fff; }
 html.skin.tema--feria .filtro--ofertas[aria-pressed="true"] { color: #fff; }
@@ -1036,10 +1041,13 @@ html.skin.tema--feria .tira-expo .boton--amarillo { background: var(--amarillo);
   .barra-sup, .portada, .cabecera, .tira-expo, .pastilla { transition: background-color .5s, color .5s, border-color .5s; }
 }
 
-/* Carrusel de productos en móvil y tableta: la tarjeta que asoma se funde con el fondo (menos al llegar al final) */
+/* Carrusel de productos en móvil y tableta: de la tarjeta que asoma a medias solo se ve la foto (js/escaparate.js) */
 @media (max-width: 960px) {
-  .productos.carrusel__pista:not(.carrusel__pista--final) {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 110px), transparent);
-            mask-image: linear-gradient(to right, #000 calc(100% - 110px), transparent);
-  }
+  .producto--asoma .producto__cuerpo { opacity: 0; }
+  .producto--asoma { background: transparent; }
+  .producto--asoma .producto__foto .pastilla, .producto--asoma .producto__sello { opacity: 0; }
+  .producto, .producto__cuerpo, .producto__foto .pastilla, .producto__sello { transition: opacity .2s, background-color .2s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .producto, .producto__cuerpo, .producto__foto .pastilla, .producto__sello { transition: none; }
 }
