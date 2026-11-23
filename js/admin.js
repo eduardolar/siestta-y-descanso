@@ -18,7 +18,7 @@
   var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
   var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261123-24';
+  var V = '20261123-27';
 
   var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
   var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
