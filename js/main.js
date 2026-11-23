@@ -417,9 +417,22 @@
     });
   }
 
+  // Cabecera más fina y con sombra en cuanto se baja un poco
+  function cabeceraAlBajar() {
+    var cab = document.querySelector('.cabecera');
+    if (!cab) return;
+    var pendiente = false;
+    function mirar() { pendiente = false; cab.classList.toggle('cabecera--fina', window.scrollY > 40); }
+    window.addEventListener('scroll', function () {
+      if (!pendiente) { pendiente = true; window.requestAnimationFrame(mirar); }
+    }, { passive: true });
+    mirar();
+  }
+
   pintarTodo();
   animarAlBajar();
   accesoEscondido();
+  cabeceraAlBajar();
   // Cada minuto se revisa el «abierto / cerrado»; y cuando llega lo del servidor (o el panel guarda en
   // otra pestaña), se repinta
   setInterval(function () { pintarEstado(window.cargarContenido().tienda); }, 60000);
