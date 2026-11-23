@@ -5,6 +5,7 @@
 // - Rebajas: lluvia suave de «%» y etiquetas pequeñas (blanco, amarillo y rojo oscuro) con vaivén y giro.
 // - Feria: confeti (rectángulos y tiras de colores que caen girando) y fuegos artificiales en la parte alta: un cohete
 //   sube con su estela y estalla en una palmera de chispas que caen con gravedad y se apagan (2-3 a la vez como mucho).
+// - Black Friday: lluvia de etiquetas de precio amarillas y negras, sin cifras (vacías, «%», «BF» u «OFERTA»), girando.
 // Caen con vaivén lateral (seno) y velocidades distintas. Solo con «skin tema--navidad» o «skin tema--rebajas» en
 // <html>; quieto con la portada fuera de la vista o la pestaña oculta («deco-quieta», que pone js/escaparate.js) y
 // nada con «reducir movimiento». En pantallas de 680 px o menos y en equipos modestos, menos partículas y ~30 fps.
@@ -26,6 +27,7 @@
     if (html.classList.contains('tema--navidad')) return 'navidad';
     if (html.classList.contains('tema--rebajas')) return 'rebajas';
     if (html.classList.contains('tema--feria')) return 'feria';
+    if (html.classList.contains('tema--black-friday')) return 'black-friday';
     return '';
   }
   function activa() {
@@ -200,6 +202,41 @@
     });
   }
 
+  // ---------- Black Friday: etiquetas de precio (sin cifras) ----------
+  var TEXTOS_BF = ['', '', '%', 'BF', 'OFERTA'];
+  function nuevaEtiquetaBF(capa, arriba) {
+    // capa 0: pequeñas y tenues · 1: medianas · 2: grandes, con texto
+    return {
+      capa: capa, r: [azar(8, 11), azar(12, 16), azar(18, 24)][capa], x: azar(0, ancho), y: arriba ? azar(-60, -20) : azar(0, alto),
+      vy: [azar(18, 26), azar(26, 36), azar(34, 46)][capa], amp: azar(8, 24), fase: azar(0, 6.3), frec: azar(.4, 1),
+      giro: azar(-.7, .7), vgiro: azar(-.8, .8), alfa: [azar(.35, .5), azar(.55, .75), azar(.8, .95)][capa],
+      negra: Math.random() < .35, texto: capa === 2 ? TEXTOS_BF[Math.floor(Math.random() * TEXTOS_BF.length)] : ''
+    };
+  }
+  function etiquetaBF(p, x) {
+    var w = p.r * 1.6, h = p.r * 2.3;
+    ctx.save();
+    ctx.translate(x, p.y);
+    ctx.rotate(p.giro);
+    ctx.globalAlpha = p.alfa;
+    ctx.beginPath();
+    ctx.moveTo(0, -h / 2); ctx.lineTo(w / 2, -h / 2 + w * .45); ctx.lineTo(w / 2, h / 2); ctx.lineTo(-w / 2, h / 2); ctx.lineTo(-w / 2, -h / 2 + w * .45);
+    ctx.closePath();
+    ctx.fillStyle = p.negra ? '#111' : '#ffd400';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = p.negra ? '#ffd400' : '#111';
+    ctx.stroke();
+    ctx.fillStyle = p.negra ? '#ffd400' : '#111';
+    ctx.beginPath(); ctx.arc(0, -h / 2 + w * .5, w * .13, 0, 6.3); ctx.fill();
+    if (p.texto) {
+      ctx.font = '900 ' + Math.round(p.texto.length > 2 ? w * .3 : w * .55) + 'px "Inter Display", "Inter", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.texto, 0, h * .12);
+    }
+    ctx.restore();
+  }
+
   // Cada tema: cuántas en escritorio y en el móvil, cómo se reparten por capas, cómo nacen y cómo se pintan
   var TEMAS = {
     navidad: {
@@ -225,6 +262,12 @@
       escritorio: 40, movil: 8, modesto: 6, reparto: [.45, .3], margen: 2,
       nueva: nuevaRebaja,
       pintar: function (p, x) { if (p.capa === 2) etiqueta(p, x); else porcentaje(p, x); },
+      estrellas: false
+    },
+    'black-friday': {
+      escritorio: 34, movil: 8, modesto: 6, reparto: [.45, .35], margen: 2,
+      nueva: nuevaEtiquetaBF,
+      pintar: etiquetaBF,
       estrellas: false
     },
     feria: {
