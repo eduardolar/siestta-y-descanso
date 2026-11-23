@@ -428,13 +428,6 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .marcas[hidden], .opiniones[hidden], .opiniones__nota[hidden], .citas[hidden] { display: none; }
 .marcas strong { color: var(--tinta); font-weight: 700; }
 
-/* ---------- 4. Visítanos ---------- */
-.visitanos { background: var(--blanco); }
-.visitanos__fila { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); gap: 40px 64px; align-items: center; }
-.visitanos__dir { margin-top: 18px; font-size: 1.05rem; }
-.visitanos__tel { margin-top: 6px; color: var(--tinta-suave); }
-.visitanos__tel a { font-weight: 700; color: var(--tinta); text-underline-offset: 3px; }
-.visitanos .acciones { margin-top: 24px; }
 .extras { margin-top: 8px; font-size: .85rem; color: var(--tinta-suave); }
 
 .abierto { padding: 28px; background: var(--gris); border-top: 6px solid var(--rojo); border-radius: var(--radio); }
@@ -475,6 +468,9 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .pie__lista a:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .pie__lista svg { width: 18px; height: 18px; flex: none; fill: none; color: rgb(255 255 255 / .85); }
 .pie__contacto a { font-weight: 700; }
+.pie__horario { display: grid; gap: 2px; margin-top: 10px; font-size: .9rem; color: rgb(255 255 255 / .85); }
+.horario__tramo { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.horario__tramo strong { color: #fff; font-weight: 700; }
 /* Redes: círculo con el icono y su nombre debajo; las tres siempre en una fila */
 .pie__redes-texto { margin: -4px 0 12px; font-size: .9rem; color: rgb(255 255 255 / .85); }
 .redes__lista { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: nowrap; gap: 12px; }
@@ -494,12 +490,6 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
 .red--tt:hover .red__icono { background: #000; color: #fff; box-shadow: inset 0 0 0 2px #fff; }
 @media (prefers-reduced-motion: no-preference) { .red:hover .red__icono { transform: translateY(-2px); } }
 .pie .red:focus-visible { outline: 3px solid var(--amarillo); outline-offset: 3px; border-radius: 6px; }
-/* En la tarjeta de visita: más pequeños, con borde (sobre blanco); los tres siempre en una fila */
-.redes__lista--peque { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 330px; }
-.redes__lista--peque .red { display: grid; justify-items: center; gap: 4px; min-width: 0; padding: 6px 2px; border: 2px solid var(--linea); border-radius: 8px; color: var(--tinta); font-size: .875rem; }
-.redes__lista--peque .red:hover { border-color: var(--tinta); }
-.redes__lista--peque .red__icono { width: 34px; height: 34px; background: var(--gris); }
-.redes__lista--peque .red svg { width: 18px; height: 18px; }
 .pie__legal { margin-top: 32px; background: rgb(0 0 0 / .25); }
 .pie__legal-fila {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px;
@@ -544,7 +534,6 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .opiniones__fila { grid-template-columns: 1fr; gap: 28px; }
   .citas { gap: 12px; }
   .llamada { padding: 24px; }
-  .visitanos__fila { grid-template-columns: 1fr; gap: 32px; }
 }
 
 /* ---------- Móvil ---------- */
@@ -636,8 +625,6 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .cita blockquote { font-size: .98rem; }
   .marcas { margin-top: 28px; }
 
-  .visitanos .acciones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .visitanos .acciones .boton { flex-direction: column; gap: 2px; min-height: 60px; padding: 6px 4px; font-size: .85rem; }
   .abierto { padding: 22px; }
 
   .pie { padding-top: 32px; padding-bottom: calc(20px + 62px + env(safe-area-inset-bottom)); }   /* hueco para la barra fija */
@@ -977,68 +964,6 @@ html.con-ficha { overflow: hidden; }   /* la página no se mueve detrás de la f
 .citas-carrusel__punto[aria-current="true"]::before { width: 22px; border-radius: 6px; background: var(--s-marca, var(--rojo)); border-color: var(--s-marca, var(--rojo)); }
 
 /* =====================================================================================================
-   Visítanos: tarjeta de visita (cada dato en su fila con su icono)
-   ===================================================================================================== */
-.visitanos__titulo { margin-bottom: 22px; }
-.visitanos__rejilla { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 28px; align-items: stretch; }
-.visitanos__foto { position: relative; margin: 0; min-height: 320px; border-radius: 8px; overflow: hidden; background: var(--gris-2); }
-.visitanos__foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.visitanos__foto figcaption { position: absolute; left: 16px; bottom: 16px; }
-.visitanos__mapa {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 18px; border-radius: var(--radio);
-  background: var(--blanco); color: var(--tinta); font-weight: 800; text-decoration: none; box-shadow: 0 6px 18px rgb(26 20 20 / .25);
-}
-.visitanos__mapa svg { width: 20px; height: 20px; color: var(--s-marca, var(--rojo)); }
-.visitanos__mapa:hover { background: var(--tinta); color: #fff; }
-@media (max-width: 900px) {
-  .visitanos__rejilla { grid-template-columns: 1fr; }
-  .visitanos__foto { display: none; } /* en el móvil, la tarjeta sola (Cómo llegar ya está dentro) */
-}
-.visita { background: var(--blanco); border: 1px solid var(--linea); border-top: 6px solid var(--s-marca, var(--rojo));
-  border-radius: 8px; box-shadow: 0 10px 30px rgb(26 20 20 / .08); overflow: hidden;
-}
-.visita__cab { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--linea); background: var(--gris); }
-.visita__logo { width: 92px; height: auto; flex: none; }
-.visita__nombre { display: grid; gap: 4px; min-width: 0; }
-.visita__tienda { font: 900 1.5rem/1 var(--letra-titulo); letter-spacing: -.03em; }
-.visita__estado { font-size: .92rem; }
-.visita__datos { margin: 0; padding: 6px 22px; }
-.visita__fila { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 4px 18px; padding: 14px 0; border-top: 1px solid var(--linea); }
-.visita__fila:first-child { border-top: 0; }
-.visita__fila dt {
-  display: flex; align-items: center; gap: 10px; align-self: start; min-height: 26px;
-  font: 800 .78rem/1.2 var(--letra-titulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave);
-}
-.visita__fila dt svg { width: 22px; height: 22px; flex: none; color: var(--s-marca, var(--rojo)); }
-.visita__fila dt .visita__ico-wa { color: var(--wa); }
-.visita__fila dd { margin: 0; display: grid; gap: 4px; min-width: 0; font-size: 1.05rem; line-height: 1.45; }
-.visita__valor { font-weight: 600; overflow-wrap: anywhere; }
-.visita__tocable { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; margin-block: -9px; font-weight: 800; font-size: 1.15rem; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: var(--s-marca, var(--rojo)); }
-.visita__enlace { justify-self: start; min-height: 40px; }
-.visita__enlace[hidden], .visita__fila[hidden] { display: none; }
-/* «Cómo llegar →»: el subrayado sigue por debajo de la flecha */
-.visita__enlace::after { display: inline; }
-@media (prefers-reduced-motion: no-preference) { .visita__enlace:hover::after { transform: none; } }
-/* Estado con punto de color: verde abierto, rojo cerrado (el texto ya dice cuál) */
-.visita__estado::before { box-shadow: none; background: var(--rojo); }
-.visita__estado[data-abierto="si"]::before { background: var(--verde); box-shadow: 0 0 0 3px rgb(46 155 72 / .25); }
-.visita .abierto__horario { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; font-size: 1rem; }
-.visita__tramo { display: grid; grid-template-columns: minmax(8.5rem, auto) minmax(0, 1fr); gap: 0 12px; }
-.visita__tramo strong { font-weight: 700; }
-.visita__nota { font-size: .875rem; color: var(--tinta-suave); }
-.visita__acciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 16px 22px 22px; }
-.visita__acciones .boton { min-height: 56px; font-size: 1.05rem; }
-@media (max-width: 640px) {
-  .visita__cab { padding: 14px 16px; }
-  .visita__logo { width: 72px; }
-  .visita__datos { padding: 2px 16px; }
-  .visita__fila { grid-template-columns: 1fr; }
-  .visita__tramo { grid-template-columns: 1fr; }
-  .visita__acciones { padding: 14px 16px 18px; }
-  .visita__acciones .boton { min-height: 60px; }
-}
-
-/* =====================================================================================================
    PIEL DE TEMPORADA: con «skin tema--…» en <html> (js/tema.js y js/escaparate.js) se tiñen portada,
    barras, botones principales, etiquetas de oferta, contacto y opiniones. Sin temporada no aplica nada.
    Contrastes (texto normal ≥ 4,5:1): blanco sobre #1f4d3a 9,9 · #e6c977 sobre #1f4d3a 6,3 · amarillo sobre
@@ -1108,7 +1033,7 @@ html.skin.tema--feria .portada__texto :focus-visible, html.skin.tema--feria .ofe
 html.skin.tema--feria .tira-expo .boton--amarillo { background: var(--amarillo); color: var(--tinta); }
 /* Cambio suave si la temporada llega del servidor después de pintar con la caché */
 @media (prefers-reduced-motion: no-preference) {
-  .barra-sup, .portada, .cabecera, .tira-expo, .pastilla, .visita { transition: background-color .5s, color .5s, border-color .5s; }
+  .barra-sup, .portada, .cabecera, .tira-expo, .pastilla { transition: background-color .5s, color .5s, border-color .5s; }
 }
 
 /* Carrusel de productos en móvil y tableta: la tarjeta que asoma se funde con el fondo (menos al llegar al final) */

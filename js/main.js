@@ -53,14 +53,6 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-contenido="whatsapp"]'), function (n) {
       n.textContent = C.whatsappLegible(tienda.whatsapp);
     });
-    // Tarjeta de visita: si el WhatsApp es el mismo número que el teléfono, una sola fila
-    var mismo = C.soloDigitos(tienda.whatsapp).slice(-9) === C.soloDigitos(tienda.telefono).slice(-9);
-    var filaWa = document.getElementById('visita-fila-wa');
-    if (filaWa) {
-      filaWa.hidden = mismo;
-      document.getElementById('visita-wa-mismo').hidden = !mismo;
-      document.getElementById('visita-tel-etiqueta').textContent = mismo ? 'Teléfono y WhatsApp' : 'Teléfono';
-    }
     // El teléfono de los datos para Google (application/ld+json) también sale del contenido
     var ld = document.querySelector('script[type="application/ld+json"]');
     if (ld) {
@@ -86,7 +78,7 @@
     caja.textContent = '';
     tienda.horario.forEach(function (tramo) {
       var fila = document.createElement('span');
-      fila.className = 'visita__tramo';
+      fila.className = 'horario__tramo';
       var dias = document.createElement('strong');
       dias.textContent = tramo.dias;
       fila.appendChild(dias);
