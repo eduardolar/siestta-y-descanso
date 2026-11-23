@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261123-15';
+  var VERSION_FOTOS = '20261123-16';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -249,13 +249,6 @@
     var max = lista.scrollWidth - lista.clientWidth;
     if (ant) ant.hidden = lista.scrollLeft <= 2;
     if (sig) sig.hidden = lista.scrollLeft >= max - 2;
-    // La tarjeta que asoma a medias enseña solo la foto (estilos.css esconde su texto en móvil y tableta)
-    var bordes = lista.getBoundingClientRect();
-    Array.prototype.forEach.call(tarjetas, function (li) {
-      var r = li.getBoundingClientRect();
-      var visible = Math.min(r.right, bordes.right) - Math.max(r.left, bordes.left);
-      li.classList.toggle('producto--asoma', visible < r.width * 0.9);
-    });
     if (!pos) return;
     if (!tarjetas.length || max <= 2) { pos.textContent = ''; return; }
     // Las que se ven enteras (o casi)

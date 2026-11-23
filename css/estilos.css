@@ -1043,16 +1043,6 @@ html.skin.tema--feria .tira-expo .boton--amarillo { background: var(--amarillo);
   .barra-sup, .portada, .cabecera, .tira-expo, .pastilla { transition: background-color .5s, color .5s, border-color .5s; }
 }
 
-/* Carrusel de productos en móvil y tableta: de la tarjeta que asoma a medias solo se ve la foto (js/escaparate.js) */
-@media (max-width: 960px) {
-  .producto--asoma .producto__cuerpo { opacity: 0; }
-  .producto--asoma { background: transparent; }
-  .producto--asoma .producto__foto .pastilla, .producto--asoma .producto__sello { opacity: 0; }
-  .producto, .producto__cuerpo, .producto__foto .pastilla, .producto__sello { transition: opacity .2s, background-color .2s; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .producto, .producto__cuerpo, .producto__foto .pastilla, .producto__sello { transition: none; }
-}
 
 /* =====================================================================================================
    DECORACIÓN DE TEMPORADA (portada, banda de arriba y tarjetas). Solo con «skin tema--…» en <html>.
