@@ -1088,24 +1088,6 @@ html.skin .portada__texto { padding-top: 86px; }
 
 /* Capa de fondo (detrás del texto): en Navidad, la nevada (js/nieve.js, en un lienzo) y el horizonte; confeti en Feria */
 .deco-fondo { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
-.deco-fondo .copo { position: absolute; top: -12px; display: none; border-radius: 50%; will-change: transform; }
-html.skin.tema--feria .deco-fondo .copo { display: block; }
-html.skin.tema--feria .copo { width: 8px; height: 12px; border-radius: 2px; animation: caer 11s linear infinite, girar-confeti 3s linear infinite; }
-html.skin.tema--feria .copo:nth-child(3n) { background: rgb(196 32 50 / .55); }
-html.skin.tema--feria .copo:nth-child(3n+1) { background: rgb(26 111 176 / .5); }
-html.skin.tema--feria .copo:nth-child(3n+2) { background: rgb(46 155 72 / .5); }
-.copo:nth-child(1) { left: 4%; animation-delay: 0s; }
-.copo:nth-child(2) { left: 13%; animation-delay: -3s; width: 5px; height: 5px; }
-.copo:nth-child(3) { left: 22%; animation-delay: -7s; }
-.copo:nth-child(4) { left: 31%; animation-delay: -10s; width: 4px; height: 4px; }
-.copo:nth-child(5) { left: 40%; animation-delay: -2s; }
-.copo:nth-child(6) { left: 49%; animation-delay: -12s; width: 5px; height: 5px; }
-.copo:nth-child(7) { left: 58%; animation-delay: -5s; }
-.copo:nth-child(8) { left: 72%; animation-delay: -9s; width: 4px; height: 4px; }
-.copo:nth-child(9) { left: 84%; animation-delay: -1s; }
-.copo:nth-child(10) { left: 94%; animation-delay: -6s; width: 5px; height: 5px; }
-@keyframes caer { from { transform: translate3d(0, -20px, 0); } to { transform: translate3d(24px, 560px, 0); } }
-@keyframes girar-confeti { to { rotate: 360deg; } }
 
 /* Tira de arriba, a todo el ancho */
 .deco-tira { position: absolute; left: 0; right: 0; top: 0; height: 80px; z-index: 2; }
@@ -1219,7 +1201,6 @@ html.skin .producto--temporada .producto__foto::after {
   .deco-tira { height: 54px; }
   .banderines { height: 54px !important; }
   .cinta-rebajas { top: 18px; right: -92px; width: 280px; font-size: .85rem; }
-  .copo:nth-child(n+7) { display: none !important; }
   .bola--1 { width: 34px; } .bola--2 { width: 30px; } .bola--3 { width: 38px; }
   .estrella-navidad { top: 16px !important; right: 52%; width: 32px; } /* sin pisar la tarjeta del precio, que con Navidad sube */
   .etiqueta-colgada { width: 52px !important; } .etiqueta-colgada--1 { display: none !important; }
@@ -1233,7 +1214,7 @@ html.deco-quieta .deco *, html.deco-quieta .portada__texto::before, html.deco-qu
 /* «Reducir movimiento» (preferencia del sistema): todo quieto; ni nieve ni confeti */
 @media (prefers-reduced-motion: reduce) {
   .deco *, html.skin .portada__texto::before, html.skin .pastilla--oferta, .banda-temporada__pista { animation: none !important; }
-  .deco-fondo .copo, .deco-fondo .particulas { display: none !important; } /* el horizonte se queda, quieto */
+  .deco-fondo .particulas { display: none !important; } /* el horizonte se queda, quieto */
   .banda-temporada__pista { width: auto; justify-content: center; }
   .banda-temporada__grupo + .banda-temporada__grupo, .banda-temporada__grupo > :nth-child(n+3) { display: none; }
 }
@@ -1258,12 +1239,11 @@ html.skin.tema--navidad .oferta-destacada { bottom: 54px; }
 .duna path { fill: #2a5f48; }
 .duna .duna__nieve { fill: none; stroke: rgb(255 255 255 / .85); stroke-width: 4; stroke-linecap: round; }
 /* Horizonte manchego (detrás del texto, al fondo de la duna) */
-.horizonte { position: absolute; left: 0; right: 0; bottom: 26px; width: 100%; height: 80px; }
-.horizonte path { fill: #18402f; }
+.horizonte { position: absolute; left: 0; right: 0; bottom: 26px; width: 100%; height: 80px; color: #18402f; } /* el dibujo es el símbolo #horizonte-manchego (currentColor) */
 .horizonte__aspas { transform-box: fill-box; }
 /* Partículas (nevada en Navidad, «%» en Rebajas): lienzo a toda la portada, detrás del texto y de la tarjeta */
 .particulas { position: absolute; inset: 0; width: 100%; height: 100%; }
-html.skin.tema--navidad .deco .particulas, html.skin.tema--rebajas .deco .particulas { display: block; }
+html.skin.tema--navidad .deco .particulas, html.skin.tema--rebajas .deco .particulas, html.skin.tema--feria .deco .particulas { display: block; }
 
 .cruce { position: absolute; will-change: transform; }
 /* Papá Noel: 340 px a 1366 (trineo con renos ≈ 275 px), algo menos en tableta. Reyes ≈ 105 px de alto (85 en el móvil) */
@@ -1492,3 +1472,45 @@ html.skin.tema--rebajas .etiqueta-precio--rebaja strong { animation: precio-cae 
   html.skin.tema--rebajas .etiqueta-precio--rebaja .producto__antes::after, html.skin.tema--rebajas .etiqueta-precio--rebaja strong { animation: none !important; }
 }
 html.deco-quieta .cupon__trozo::before, html.deco-quieta .cupon__trozo::after { animation-play-state: paused !important; }
+
+/* ---------- Feria: horizonte manchego y noria (capa z 1: por encima de la foto, por debajo de la tarjeta del precio),
+   fuegos artificiales y confeti en el lienzo de partículas (js/particulas.js). La noria va abajo a la derecha de la
+   foto, apoyada en el horizonte (lejos de la tarjeta del precio, que queda a la izquierda). Gira
+   despacio y sus cabinas se mantienen verticales (giran al revés). Solo transform y opacity; quieta con deco-quieta y
+   con «reducir movimiento» (el horizonte y la noria se quedan, quietos) ---------- */
+.deco-feria-capa { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+.horizonte--feria { bottom: 0; height: 44px; color: #e2b300; }
+/* La noria vive dentro de la foto. Ancho = lo que queda a la derecha de la tarjeta del precio (que mide 250 px desde
+   −36 px, es decir, su borde derecho está a 214 px del borde izquierdo de la foto) menos 12 px de margen y 26 px de
+   hueco; como mucho 170 px (≈ 190 de alto). Si la foto es tan estrecha que no cabe con gracia, no sale */
+.deco-noria { position: absolute; inset: 0; z-index: 1; overflow: hidden; container: noria / inline-size; }
+.noria { position: absolute; bottom: 6px; right: 12px; width: clamp(0px, calc(100% - 214px - 38px), 170px); overflow: visible; }
+html.skin.tema--feria .deco-noria .noria.deco-feria { display: block; }
+@container noria (max-width: 309px) { html.skin.tema--feria .deco-noria .noria.deco-feria { display: none; } }
+.noria__rueda { transform-box: view-box; transform-origin: 60px 58px; animation: girar-noria 40s linear infinite; }
+.noria__cabina { transform-box: fill-box; transform-origin: 50% 0; animation: girar-noria-contra 40s linear infinite; }
+@keyframes girar-noria { to { transform: rotate(360deg); } }
+@keyframes girar-noria-contra { to { transform: rotate(-360deg); } }
+.noria__pata { fill: none; stroke: #1a1414; stroke-width: 3; stroke-linecap: round; }
+.noria__aro { fill: none; stroke: #c42032; stroke-width: 3; }
+.noria__aro--dentro { stroke-width: 1.5; opacity: .6; }
+.noria__radios { fill: none; stroke: rgb(26 20 20 / .7); stroke-width: 1.4; }
+.noria__gancho { fill: none; stroke: #1a1414; stroke-width: 1.4; }
+.noria__cabina rect { stroke: #1a1414; stroke-width: 1; }
+.noria__cabina--rojo rect { fill: #c42032; } .noria__cabina--azul rect { fill: #1a6fb0; }
+.noria__cabina--verde rect { fill: #2e9b48; } .noria__cabina--blanco rect { fill: #fff; }
+.noria__eje { fill: #1a1414; }
+.noria__luz { fill: #fff; stroke: #1a1414; stroke-width: .6; animation: luz-noria 1.6s steps(1) infinite; }
+.noria__luz--1 { animation-delay: -.55s; } .noria__luz--2 { animation-delay: -1.1s; }
+@keyframes luz-noria { 0% { opacity: 1; } 50% { opacity: .25; } }
+/* Tableta: la tarjeta mide 220 px desde −24 px (borde derecho a 196 px) */
+@media (min-width: 681px) and (max-width: 960px) {
+  .noria { width: clamp(0px, calc(100% - 196px - 36px), 130px); }
+}
+@media (max-width: 680px) {
+  .horizonte--feria { height: 34px; }
+  /* Móvil: la noria en la esquina de abajo a la derecha y la tarjeta (de ancho según su texto) con tope para no llegar
+     nunca a ella: 12 px de margen + 96 px de noria + 8 px + 16 px de hueco */
+  .noria { right: 8px; bottom: 6px; width: 96px; } /* ≈ 107 px de alto */
+  html.skin.tema--feria .oferta-destacada { max-width: calc(100% - 132px); }
+}
