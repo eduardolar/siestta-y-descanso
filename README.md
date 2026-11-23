@@ -15,12 +15,20 @@ y abrir http://127.0.0.1:8091/ (lee los datos reales de Supabase; el panel, en h
 
 ## Estructura
 
-Arriba, una barra roja fina con la dirección, «abierto / cerrado» y «Cómo llegar». Después:
+Arriba, una barra roja fina con la dirección, «abierto / cerrado» y «Cómo llegar» (y, encima, si hay una
+**temporada** encendida —Navidad, Black Friday, Rebajas o Feria—, una banda fina con su color, su pictograma y su
+texto). Después:
 **portada** roja (titular, «Desde 2003», WhatsApp y una foto grande: la del **producto destacado**, con una
 tarjeta de nombre y precio que abre su ficha, o, si no hay destacado, solo la de la tienda),
 **ventajas** (pruébalo en tienda, a tu medida, entrega con su zona —«Entrega en Tomelloso y pueblos
-cercanos», o «consulta zona» si se deja vacía—, financiación), **banda de exposición** a todo el ancho
-(titular, «Pocas unidades» debajo y «Ver ofertas»), **«Ahora en tienda»** (filtros y un **carrusel**: una sola
+cercanos», o «consulta zona» si se deja vacía—, financiación). Justo tras la portada, si están encendidos: el
+**anuncio** (sorteo, evento… con pastilla, título, texto, foto, botón a Instagram/Facebook/TikTok/WhatsApp en
+pestaña nueva, «Hasta el 6 de enero» y «Bases del sorteo»; con el color de la temporada o, si no hay, el rojo) y
+la **sección de la temporada** («Ofertas de Navidad», «Black Friday», «Rebajas», «Ofertas de feria» o el texto
+propio si es corto) con los productos marcados «En la temporada» en el mismo carrusel que «Ahora en tienda» (y
+un enlace en el menú); la tarjeta de la portada lleva un sello discreto de la temporada. Con fecha «Hasta», al
+día siguiente (hora de Madrid) desaparecen solos. Sin JavaScript no salen. Después, **banda de exposición** a todo el ancho
+(titular, «Pocas unidades» debajo y «Ver ofertas»), **«Ahora en tienda»** (filtros —Todo, Sofás, Sillones, Colchones, Camas, Accesorios, Otros y Ofertas— y un **carrusel**: una sola
 fila deslizable con *scroll-snap* con todos los productos del filtro —se ven ~3 en escritorio, ~2 en tableta y
 ~1,3 en el móvil, para que asome el siguiente—, flechas ‹ › de 48 px en escritorio que desaparecen en los
 extremos, «1–3 de 7» debajo y, para lectores de pantalla, «7 productos»; sin autoplay y, con «reducir
@@ -40,7 +48,7 @@ pantalla completa en el móvil y, en escritorio y tableta, centrada, en dos colu
 hasta 4 fotos (deslizable, con miniaturas, «2/4» y, en escritorio, flechas), etiqueta, nombre (hasta 3
 líneas), precio, sello «Reservado» si lo está, descripción larga, los detalles que haya (Medidas, Telas,
 Firmeza —solo colchones—, A medida, Plazo) y «Más {categoría}» (hasta 3 productos; si no hay bastantes, se
-completa con otros y pasa a «Más»). Abajo, siempre a la vista, la barra de acciones: «Reservar» (o «Avisadme si
+completa con otros y pasa a «Más»; en «Otros», «Más productos»). Abajo, siempre a la vista, la barra de acciones: «Reservar» (o «Avisadme si
 queda libre»), «Preguntar» y un icono para compartir. Se cierra con la X, Esc, tocando fuera o con «atrás».
 
 Cada ficha tiene **enlace propio**: `index.html#p/SOF-02` (vale en minúsculas). Al abrirla desde la web se
@@ -98,8 +106,11 @@ colchón de 299 €, para que la foto y el precio sean del mismo producto).
 - `fonts/`: Inter e Inter Display (variables), en woff2 con solo los caracteres del español, y su licencia OFL.
 - `img/`: el logo y las fotos de la tienda (sacadas de sus vídeos de TikTok y de Instagram).
 
+`js/tema.js` (sin `defer`, en el `<head>` de la web): pone la «piel» de la temporada (`skin tema--…` en `<html>`)
+leyendo la caché antes de pintar, para que no parpadee; `js/escaparate.js` la corrige con lo del servidor.
+
 Al cambiar CSS o JS, sube el `?v=` de todos los enlaces y las constantes de versión de `js/admin.js` y
-`js/escaparate.js` (ahora `20261123-2`).
+`js/escaparate.js` (ahora `20261123-10`).
 
 Opiniones de Google: se publican con el nombre y la inicial del apellido («Brian L.»).
 
@@ -129,7 +140,8 @@ Opiniones de Google: se publican con el nombre y la inicial del apellido («Bria
   fotos; al cambiar la foto de la tienda, la anterior. Si un borrado del bucket falla, no bloquea nada (como
   mucho queda un archivo que no se ve). En un producto nuevo las fotos se suben con su ref; si al añadirlo
   la ref cambia (otra categoría, u otra persona cogió esa ref a la vez), se vuelven a subir con la buena.
-- **Refs nuevas**: la siguiente libre de su categoría (`SOF-04`…), contando también las vendidas; si otra
+- **Refs nuevas**: la siguiente libre de su categoría (`SOF-04`…; los accesorios `ACC-01`… y los otros `OTR-01`…, que necesitan la migración
+  `007_categorias_accesorios_otros.sql`: hasta ejecutarla, el panel avisa al guardarlos y no se guardan), contando también las vendidas; si otra
   persona la crea justo a la vez, se prueba con la siguiente.
 - **Dos pestañas o dos dispositivos**: cada pestaña avisa a las demás de este navegador por la caché
   (evento `storage`); el panel, además, recarga del servidor cada minuto y al volver a la pestaña todo lo que
@@ -163,8 +175,10 @@ se quedan hasta «Cerrar». Los errores salen junto al campo que hay que corregi
 
 - **Productos**: «+ Añadir producto» abre una ficha: hasta 4 fotos (tocar el cuadrado hace una foto; «Elegir
   de la galería» coge una o varias; la primera es la principal; las demás tienen «Hacer principal» y cada una
-  una papelera, con «Foto quitada · Deshacer»), nombre, qué es, precio (vacío o 0 = «Consultar»), «Poner precio
-  rebajado», «Primero en la lista», «Grande en la portada» (necesita foto), etiqueta en la foto (Exposición,
+  una papelera, con «Foto quitada · Deshacer»), nombre, qué es (sofá, sillón, colchón, cama, accesorio —almohadas, edredones, nórdicos, protectores,
+  sábanas…— u otro —lo que no encaje: una mesita, una lámpara…—), precio (vacío o 0 = «Consultar»), «Poner precio
+  rebajado», «Primero en la lista», «Grande en la portada» (necesita foto), «En la temporada» (con la nota «Sale
+  cuando actives una temporada» si no hay ninguna; en la lista lleva «En la temporada»), etiqueta en la foto (Exposición,
   Oferta, Últimas unidades) y una descripción corta. En «Más detalles (opcional)», plegado para que el alta siga siendo rápida: descripción larga (hasta
   1000), medidas, telas y colores, firmeza (solo si es un colchón), «Se puede pedir a medida» y plazo
   orientativo. Al lado (abajo en el móvil) se ve la tarjeta y, si ya está guardado, «Ver la ficha en la web».
@@ -180,7 +194,13 @@ se quedan hasta «Cerrar». Los errores salen junto al campo que hay que corregi
   atenuados, y no se pueden elegir; o «Ninguno: solo la foto de la tienda»), la
   foto de la tienda (hacer o elegir; se reduce como las demás), el titular (hasta 3 líneas; la última sale en
   amarillo), la frase de debajo y la vista previa. Si se vende o se borra el destacado, la portada se queda
-  sin destacado y el panel lo avisa («Deshacer» lo devuelve).
+  sin destacado y el panel lo avisa («Deshacer» lo devuelve). **Temporada**: Ninguna · Navidad · Black Friday ·
+  Rebajas · Feria, texto de la banda (opcional; vacío = el de la temporada), fecha «Hasta» (opcional), vista previa
+  y «N productos en la temporada». **Anuncio**: «Enseñarlo en la web» (necesita título), Sorteo · Evento · Anuncio
+  («Un sorteo necesita bases legales.»), título (60), texto (220), foto (se guarda en `portada/` del bucket, como
+  la de la tienda), botón (texto y enlace: solo Instagram, Facebook, TikTok o WhatsApp), «Hasta» y enlace a las
+  bases (lo mismo o eduardolar.github.io), con vista previa. Necesitan la migración `008_temporada.sql`: hasta
+  ejecutarla, el panel avisa al guardarlos y lo demás se sigue guardando.
 - **Confianza**: nota y número de opiniones de Google, hasta 6 opiniones (texto y nombre), financiación
   (casilla y condiciones opcionales; no pongas condiciones que no sean seguras), marcas (hasta 12) y el año
   «Desde». Lo que se deja vacío desaparece de la web.
