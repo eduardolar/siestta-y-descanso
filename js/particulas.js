@@ -3,6 +3,8 @@
 // - Navidad: nevada en tres capas (al fondo, copos pequeños, lentos y algo difuminados; en medio, medianos;
 //   delante, pocos cristales de 6 puntas que giran despacio y a veces destellan) y, arriba, estrellitas que titilan.
 // - Rebajas: lluvia suave de «%» y etiquetas pequeñas (blanco, amarillo y rojo oscuro) con vaivén y giro.
+// - Feria: confeti (rectángulos y tiras de colores que caen girando) y fuegos artificiales en la parte alta: un cohete
+//   sube con su estela y estalla en una palmera de chispas que caen con gravedad y se apagan (2-3 a la vez como mucho).
 // Caen con vaivén lateral (seno) y velocidades distintas. Solo con «skin tema--navidad» o «skin tema--rebajas» en
 // <html>; quieto con la portada fuera de la vista o la pestaña oculta («deco-quieta», que pone js/escaparate.js) y
 // nada con «reducir movimiento». En pantallas de 680 px o menos y en equipos modestos, menos partículas y ~30 fps.
@@ -23,6 +25,7 @@
     if (!html.classList.contains('skin')) return '';
     if (html.classList.contains('tema--navidad')) return 'navidad';
     if (html.classList.contains('tema--rebajas')) return 'rebajas';
+    if (html.classList.contains('tema--feria')) return 'feria';
     return '';
   }
   function activa() {
@@ -100,6 +103,103 @@
     ctx.restore();
   }
 
+  // ---------- Feria: confeti y fuegos artificiales ----------
+  // Colores de la marca que se ven sobre el amarillo de la feria (el amarillo no: desaparecería)
+  var COLORES_FERIA = ['196,32,50', '26,111,176', '46,155,72', '26,20,20', '255,255,255'];
+  function nuevoConfeti(capa, arriba) {
+    // capa 0 y 1: rectángulos · 2: tiras largas
+    return {
+      capa: capa, r: capa === 2 ? azar(9, 14) : azar(5, 8), x: azar(0, ancho), y: arriba ? azar(-40, -10) : azar(0, alto),
+      vy: azar(30, 55), amp: azar(6, 18), fase: azar(0, 6.3), frec: azar(.6, 1.4),
+      giro: azar(0, 6.3), vgiro: azar(-3, 3), vuelta: azar(0, 6.3), alfa: azar(.7, .95),
+      color: COLORES_FERIA[Math.floor(Math.random() * COLORES_FERIA.length)]
+    };
+  }
+  function confeti(p, x, dt) {
+    // El giro en el aire: el lado corto se estrecha y se ensancha (como un papel que da vueltas)
+    p.vuelta += dt * 5;
+    var w = p.capa === 2 ? 3 : p.r * 1.4, h = p.capa === 2 ? p.r * 2.4 : p.r;
+    ctx.save();
+    ctx.translate(x, p.y);
+    ctx.rotate(p.giro);
+    ctx.scale(1, Math.max(.15, Math.abs(Math.cos(p.vuelta))));
+    ctx.fillStyle = 'rgba(' + p.color + ',' + p.alfa + ')';
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  var COLORES_FUEGOS = ['196,32,50', '26,111,176', '46,155,72', '158,23,38']; // sin blanco ni amarillo: sobre el amarillo no se verían
+  var cohetes = [], chispas = [], destellos = [], esperaCohete = 0, grupo = 0;
+  function maxFuegos() { return modesto ? 1 : pequeno ? 2 : 3; }
+  function lanzar() {
+    // Sale de la mitad de abajo y estalla en la franja de arriba (por detrás del texto). En escritorio, sobre la
+    // columna del texto (la foto, a la derecha, lo taparía)
+    var x = pequeno ? azar(ancho * .1, ancho * .9) : azar(ancho * .06, ancho * .5);
+    cohetes.push({ x: x, y: alto * azar(.55, .75), vy: -azar(260, 340), fin: alto * azar(.08, .26), color: COLORES_FUEGOS[Math.floor(Math.random() * COLORES_FUEGOS.length)], estela: [] });
+  }
+  function estallar(c) {
+    var n = modesto ? 16 : pequeno ? 26 : 44;
+    var base = c.color;
+    grupo++;
+    destellos.push({ x: c.x, y: c.y, edad: 0, color: base });
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * 6.283 + azar(-.1, .1), v = azar(165, 315);
+      chispas.push({ g: grupo, x: c.x, y: c.y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, vida: azar(1.3, 1.9), edad: 0,
+        color: Math.random() < .25 ? COLORES_FUEGOS[Math.floor(Math.random() * COLORES_FUEGOS.length)] : base });
+    }
+  }
+  function fuegos(dt) {
+    esperaCohete -= dt;
+    // Fuegos en marcha: cohetes subiendo + palmeras que aún tienen chispas
+    var vivas = {};
+    chispas.forEach(function (p) { vivas[p.g] = true; });
+    if (esperaCohete <= 0 && cohetes.length + Object.keys(vivas).length < maxFuegos()) {
+      lanzar();
+      esperaCohete = azar(1.4, 2.8);
+    }
+    ctx.lineCap = 'round';
+    cohetes = cohetes.filter(function (c) {
+      c.estela.push([c.x, c.y]);
+      if (c.estela.length > 8) c.estela.shift();
+      c.y += c.vy * dt;
+      c.x += Math.sin(c.y * .05) * .3;
+      // Estela con un borde oscuro debajo, para que se vea sobre el amarillo
+      ctx.beginPath();
+      c.estela.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+      ctx.lineTo(c.x, c.y);
+      ctx.strokeStyle = 'rgba(26,20,20,.35)'; ctx.lineWidth = 5; ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + c.color + ',.8)'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = 'rgba(' + c.color + ',1)';
+      ctx.beginPath(); ctx.arc(c.x, c.y, 3.4, 0, 6.3); ctx.fill();
+      if (c.y <= c.fin) { estallar(c); return false; }
+      return true;
+    });
+    chispas = chispas.filter(function (p) {
+      p.edad += dt;
+      if (p.edad >= p.vida) return false;
+      p.vy += 120 * dt;                       // gravedad
+      p.vx *= 1 - .9 * dt; p.vy *= 1 - .4 * dt; // frenan en el aire
+      var x0 = p.x, y0 = p.y;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      var a = 1 - p.edad / p.vida;
+      // Chispa con estela: trazo oscuro fino debajo y el color encima (destaca sobre el amarillo)
+      ctx.beginPath(); ctx.moveTo(x0 - p.vx * .06, y0 - p.vy * .06); ctx.lineTo(p.x, p.y);
+      ctx.strokeStyle = 'rgba(26,20,20,' + (a * .35).toFixed(2) + ')'; ctx.lineWidth = 4.6; ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + p.color + ',' + a.toFixed(2) + ')'; ctx.lineWidth = 2.8; ctx.stroke();
+      return true;
+    });
+    // Destello breve en el centro al estallar (crece y se apaga en ~0,3 s)
+    destellos = destellos.filter(function (d) {
+      d.edad += dt;
+      if (d.edad > .3) return false;
+      var k = d.edad / .3;
+      ctx.fillStyle = 'rgba(' + d.color + ',' + (.45 * (1 - k)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(d.x, d.y, 10 + 34 * k, 0, 6.3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,' + (1 - k).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(d.x, d.y, 7 * (1 - k) + 2, 0, 6.3); ctx.fill();
+      return true;
+    });
+  }
+
   // Cada tema: cuántas en escritorio y en el móvil, cómo se reparten por capas, cómo nacen y cómo se pintan
   var TEMAS = {
     navidad: {
@@ -126,6 +226,13 @@
       nueva: nuevaRebaja,
       pintar: function (p, x) { if (p.capa === 2) etiqueta(p, x); else porcentaje(p, x); },
       estrellas: false
+    },
+    feria: {
+      escritorio: 60, movil: 18, modesto: 10, reparto: [.4, .35], margen: 3,
+      nueva: nuevoConfeti,
+      pintar: confeti,
+      estrellas: false,
+      extra: fuegos
     }
   };
 
@@ -137,7 +244,7 @@
     dpr = Math.min(2, window.devicePixelRatio || 1);
     lienzo.width = Math.round(ancho * dpr); lienzo.height = Math.round(alto * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    piezas = []; estrellas = [];
+    piezas = []; estrellas = []; cohetes = []; chispas = []; destellos = []; esperaCohete = 2;
     if (!T) return;
     // Densidad: menos en pantallas pequeñas y aún menos en equipos modestos
     pequeno = ancho <= 680;
@@ -174,6 +281,7 @@
       if (c.y - c.r * T.margen > alto) { piezas[i] = T.nueva(c.capa, true); return; }
       T.pintar(c, x, dt);
     });
+    if (T.extra) T.extra(dt);
     seguir();
   }
   function seguir() { if (!pedido && activa()) pedido = window.requestAnimationFrame(pintar); }
