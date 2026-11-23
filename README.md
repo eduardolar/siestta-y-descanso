@@ -1,8 +1,9 @@
 # Siestta y Descanso · página de presentación
 
 Landing de una sola página para la tienda de sofás y colchones **Siestta y Descanso**
-(Calle Herradores 65, Tomelloso). HTML, CSS y un poco de JavaScript, sin dependencias
-ni cookies.
+(Calle Herradores 65, Tomelloso), con un panel para que la tienda cambie productos, horario y textos.
+HTML, CSS y JavaScript sin librerías ni cookies. Los datos y las fotos están en **Supabase** (base de
+datos, inicio de sesión y almacén de fotos), al que se habla con `fetch` contra sus API REST.
 
 ## Verla en local
 
@@ -10,7 +11,7 @@ ni cookies.
 python -m http.server 8091 --bind 127.0.0.1
 ```
 
-y abrir http://127.0.0.1:8091/
+y abrir http://127.0.0.1:8091/ (lee los datos reales de Supabase; el panel, en http://127.0.0.1:8091/admin.html).
 
 ## Estructura
 
@@ -19,11 +20,15 @@ Arriba, una barra roja fina con la dirección, «abierto / cerrado» y «Cómo l
 tarjeta de nombre y precio que abre su ficha, o, si no hay destacado, solo la de la tienda),
 **ventajas** (pruébalo en tienda, a tu medida, entrega con su zona —«Entrega en Tomelloso y pueblos
 cercanos», o «consulta zona» si se deja vacía—, financiación), **banda de exposición** a todo el ancho
-(titular, «Pocas unidades» debajo y «Ver ofertas»), **«Ahora en tienda»** (filtros, 3 productos en escritorio
-y 4 en el móvil con «Ver los N productos», y una franja para mayores y familias; toda la tarjeta abre la ficha,
-con «›» junto al nombre), **banda «Un colchón online no se prueba. Este sí.»** (titular en una línea y los 4
-pasos en una fila: número, pictograma y texto), **opiniones de Google** (y las marcas, si las hay), **Visítanos** y el **pie** con redes y
-«Acceso tienda». Lo que el panel deja vacío no se enseña. Textos mínimos: sin antetítulos ni frases que
+(titular, «Pocas unidades» debajo y «Ver ofertas»), **«Ahora en tienda»** (filtros y un **carrusel**: una sola
+fila deslizable con *scroll-snap* con todos los productos del filtro —se ven ~3 en escritorio, ~2 en tableta y
+~1,3 en el móvil, para que asome el siguiente—, flechas ‹ › de 48 px en escritorio que desaparecen en los
+extremos, «1–3 de 7» debajo y, para lectores de pantalla, «7 productos»; sin autoplay y, con «reducir
+movimiento», sin animación; al cambiar de filtro vuelve al principio; con el teclado, la tarjeta enfocada se
+pone a la vista; toda la tarjeta abre la ficha, con «›» junto al nombre, pero un arrastre no la abre. Debajo,
+la franja para mayores y familias), **banda «Un colchón online no se prueba. Este sí.»** (titular en una línea y los 4
+pasos en una fila: número, pictograma y texto), **opiniones de Google** (y las marcas, si las hay), **Visítanos** y el **pie** con redes.
+Lo que el panel deja vacío no se enseña. Textos mínimos: sin antetítulos ni frases que
 repitan el título. En las tarjetas y en la ficha solo hay dos acciones: «Reservar» (o «Avisadme si queda
 libre») y «Preguntar».
 
@@ -53,36 +58,105 @@ colchón de 299 €, para que la foto y el precio sean del mismo producto).
 
 - `index.html`: la página (con los datos de la tienda en `application/ld+json` para Google).
   Lleva escritos los valores por defecto (textos, horario y productos de ejemplo), así se ve bien
-  sin JavaScript y para los buscadores; el JavaScript los sustituye por lo guardado en el panel.
-- `admin.html`: el panel de la tienda (enlace discreto «Acceso tienda» en el pie). Sin contraseña: es un prototipo.
+  sin JavaScript y para los buscadores; el JavaScript los sustituye por lo que hay en la base de datos.
+- `admin.html`: el panel de la tienda, con correo y contraseña (ver «Cómo usar el panel»). No hay enlace
+  visible desde la web.
 - `css/estilos.css`: estilos de la web (60 % blanco, 30 % rojo Siestta, 10 % amarillo en precios y ofertas).
 - `css/admin.css`: estilos del panel, pensados primero para el móvil.
-- `js/contenido.js`: los datos (`CONTENIDO_EJEMPLO`), y `cargarContenido()`, `guardarContenido()` y
-  `restaurarEjemplo()`. Guarda en `localStorage` con la clave `siestta-contenido-v1`; el campo `version`
-  permite migrar si cambia el formato (versión 2: llegan opiniones, financiación, marcas y «desde»; los datos
+- `js/config.js`: la dirección del proyecto de Supabase y su clave **publishable** (`sb_publishable_…`).
+  Son públicas por diseño: solo dejan leer lo que permiten las reglas de la base de datos (productos no
+  vendidos y ajustes). **Nunca** pongas aquí la clave secreta (`sb_secret_…` / `service_role`).
+- `js/datos.js`: la conexión con Supabase por `fetch` (sin supabase-js): `/rest/v1` (productos, ajustes,
+  editores), `/auth/v1` (entrar, renovar la sesión, salir) y `/storage/v1` (fotos del bucket `fotos`).
+  Pasa las filas de la base de datos (`ref`, `precio_antes`, `descripcion_larga`, `a_medida`…) al mismo
+  objeto de siempre (`id`, `precioAntes`, `descripcionLarga`, `aMedida`…) y por la normalización de
+  `contenido.js`. Cada petición tiene un tiempo máximo (8 s, `espera` en `config.js`).
+- `js/contenido.js`: el modelo, el ejemplo (`CONTENIDO_EJEMPLO`), la revisión de todo lo que llega
+  (`normalizar`) y la **caché** de este navegador: `cargarContenido()` / `guardarContenido()` guardan en
+  `localStorage` (clave `siestta-contenido-v1`) el último contenido bueno que llegó del servidor; el campo
+  `version` permite migrar si cambia el formato (versión 2: llegan opiniones, financiación, marcas y «desde»; los datos
   de la versión 1 se completan con los del ejemplo. Versión 3: cada producto pasa de `foto` a `fotos` —hasta
   4, la primera es la principal; úsese `Contenido.fotoPrincipal(p)`— y llegan `descripcionLarga`, `medidas`,
   `colores`, `firmeza`, `aMedida` y `plazo`, vacíos al migrar; la tienda gana `zonaEntrega` y la portada
-  `destacado` y `foto`). Todo lo que se lee se revisa (textos, precios, fotos solo `img/…`
-  o JPEG/PNG/WebP incrustadas, WhatsApp `34` + 9 cifras; el destacado solo vale si el producto se ve en la web).
+  `destacado` y `foto`). Todo lo que se lee se revisa (textos, precios, fotos solo `img/…` o rutas del
+  bucket —`productos/{ref}/{uuid}.jpg` de su propio producto y `portada/{uuid}.jpg`—, WhatsApp `34` + 9
+  cifras; el destacado solo vale si el producto se ve en la web). Las fotos incrustadas (`data:`) ya no valen.
+  `Contenido.urlFoto(ruta)` da la dirección de una foto: las de `img/` son relativas y las del bucket, su URL
+  pública (`…/storage/v1/object/public/fotos/{ruta}`).
 - `js/escaparate.js`: «Ahora en tienda» (tarjetas, filtros, sello «Reservado», botón «Reservar» por WhatsApp
-  con el mensaje ya escrito, «Ver los N productos», la tarjeta para mayores y la tira de exposición, que
+  con el mensaje ya escrito, el carrusel y la tira de exposición, que
   solo sale si hay piezas de exposición a la venta y cuyo botón activa el filtro «Ofertas») y la foto y la
   tarjeta del producto destacado de la portada.
 - `js/ficha.js`: la ficha de producto y su enlace `#p/{ref}`.
 - `js/main.js`: aviso, titular, contacto, horario y el «Abierto ahora / abrimos el lunes a las…» con la hora
   de Madrid. También pone el teléfono del panel en los datos para Google (`application/ld+json`); el resto de
-  esos datos (dirección, horario) sigue fijo en el HTML: si cambian, hay que tocarlos a mano.
-- `js/admin.js`: el panel.
+  esos datos (dirección, horario) sigue fijo en el HTML: si cambian, hay que tocarlos a mano. Y el acceso
+  escondido al panel (5 toques en el logo).
+- `js/admin.js`: el panel (entrada, guardado por producto y por campo, fotos al bucket, conflictos).
+- `supabase/`: el esquema de la base de datos, los datos de ejemplo y cómo dar de alta a quien edita
+  (`supabase/LEEME.md`).
 - `fonts/`: Inter e Inter Display (variables), en woff2 con solo los caracteres del español, y su licencia OFL.
 - `img/`: el logo y las fotos de la tienda (sacadas de sus vídeos de TikTok y de Instagram).
 
 Al cambiar CSS o JS, sube el `?v=` de todos los enlaces y las constantes de versión de `js/admin.js` y
-`js/escaparate.js`.
+`js/escaparate.js` (ahora `20261123-2`).
+
+Opiniones de Google: se publican con el nombre y la inicial del apellido («Brian L.»).
+
+## Cómo funcionan los datos
+
+- **La web** pinta primero lo que trae el HTML (sin JavaScript y para los buscadores), enseguida lo de la
+  caché de ese navegador (el último contenido bueno, para que cargue al instante) y, en cuanto llega, lo
+  del servidor (que guarda en la caché). Si el servidor no contesta en 8 s o falla, se queda con la caché o
+  con el ejemplo, sin enseñar ningún error. Un enlace `#p/{ref}` de un producto que aún no está en la caché
+  espera a lo del servidor antes de darse por malo. Al volver a la pestaña (pasado un minuto) y al volver
+  la conexión se vuelve a pedir. El público solo recibe los productos no vendidos. Si la caché está
+  estropeada (no se puede leer o algún producto no es válido), se descarta y se usa el ejemplo. Si una foto
+  no carga (p. ej. se borró del bucket), sale el cartel de «sin foto» (en la portada, la foto de la tienda).
+- **El panel** guarda **por producto y por campo** (`PATCH` solo de lo cambiado; `POST` para dar de alta y
+  `DELETE` para borrar) y los ajustes (tienda, portada, opiniones…) en la fila única de `ajustes`. Cada
+  guardado es condicional (`actualizado_en`): si otra persona lo ha cambiado desde que se leyó, no se pisa
+  nada, se recarga ese producto o los ajustes y se avisa «Lo ha cambiado otra persona; se ha recargado» (el
+  campo que se estaba escribiendo se respeta y se guarda al seguir escribiendo). En los ajustes, como cada
+  cambio es de un campo, se recargan y se vuelve a guardar solo ese campo encima, avisando. Los guardados van de uno en
+  uno. Al vender o borrar el destacado de la portada (la base de datos lo quita sola), se recargan los
+  ajustes. Los errores de la base de datos se traducen a mensajes claros (reglas incumplidas, sin permiso,
+  sesión caducada, sin conexión).
+- **Fotos**: se reducen a 900 px en JPEG al 80 % (si pasan de ~590 KB se baja la calidad; el bucket admite
+  600 KB) y se suben al bucket `fotos` en `productos/{ref}/{uuid}.jpg` (o `portada/{uuid}.jpg`); en la base
+  de datos se guarda la **ruta**, no la URL. Al quitar una foto se guarda primero el producto sin ella y el
+  archivo se borra del bucket pasados unos segundos (por si se pulsa «Deshacer»); al borrar un producto, sus
+  fotos; al cambiar la foto de la tienda, la anterior. Si un borrado del bucket falla, no bloquea nada (como
+  mucho queda un archivo que no se ve). En un producto nuevo las fotos se suben con su ref; si al añadirlo
+  la ref cambia (otra categoría, u otra persona cogió esa ref a la vez), se vuelven a subir con la buena.
+- **Refs nuevas**: la siguiente libre de su categoría (`SOF-04`…), contando también las vendidas; si otra
+  persona la crea justo a la vez, se prueba con la siguiente.
+- **Dos pestañas o dos dispositivos**: cada pestaña avisa a las demás de este navegador por la caché
+  (evento `storage`); el panel, además, recarga del servidor cada minuto y al volver a la pestaña todo lo que
+  no se esté editando (la ficha abierta y el campo que se escribe no se tocan), y también al volver la conexión.
 
 ## Cómo usar el panel
 
-Abre `admin.html` (o «Acceso tienda» al pie de la web). Todo se guarda solo: arriba sale «Guardado ✓» y
+Se entra de dos formas: con la dirección directa `admin.html` (p. ej.
+`https://eduardolar.github.io/siestta-y-descanso/admin.html`) o, desde la web, **tocando 5 veces seguidas el
+logo de la cabecera** (en menos de 3 s entre el primer toque y el quinto). No hay ninguna pista visible. Los
+toques 1 a 4 hacen lo de siempre (subir arriba); vale con el dedo, el ratón o Enter sobre el logo (cada Enter
+cuenta como un toque); un doble clic no basta.
+
+El panel pide **correo y contraseña** de una cuenta dada de alta en Supabase y en la tabla `editores` (cómo
+darla de alta: `supabase/LEEME.md`, apartado 2; no hay registro libre). Si la cuenta no está en `editores`:
+«Esta cuenta no tiene permiso para editar». La sesión se queda abierta en ese móvil o navegador (se renueva
+sola antes de caducar y al volver a la pestaña); si aun así caduca, el panel vuelve a pedir la contraseña sin
+perder lo que se estaba escribiendo, y lo guarda al entrar. Abajo del todo, «Has entrado como …» y
+**«Cerrar sesión»** (cierra solo la de ese dispositivo). Antes de cerrarla guarda lo que quedara a medio
+guardar; si algo no se puede guardar, lo avisa y no la cierra.
+
+**¿Has olvidado la contraseña?**, en la pantalla de entrar: se escribe el correo y llega un enlace (el panel
+dice siempre «Si el correo existe, te llegará un enlace»). El enlace abre el panel, que pide la contraseña
+nueva dos veces (mínimo 8 caracteres) y entra. Lo que hay que configurar en Supabase para que funcione:
+`supabase/LEEME.md` (paso 5 y «Contraseña olvidada»).
+
+Todo se guarda solo: arriba sale «Guardado ✓» y
 abajo aparece un aviso flotante con lo que se ha hecho («Reservado: …», «Añadido a la web», «Guardado»): los
 informativos se van solos a los 3 s y no tapan los toques; los que llevan «Deshacer» duran 5 s; los de error
 se quedan hasta «Cerrar». Los errores salen junto al campo que hay que corregir.
@@ -113,34 +187,39 @@ se quedan hasta «Cerrar». Los errores salen junto al campo que hay que corregi
 - **Contacto**: teléfono, móvil de WhatsApp (vale «621 23 05 88», con +34, 0034, espacios o guiones: se
   guarda como 34621230588), dirección (hasta 3 líneas) y zona de entrega (opcional, hasta 80: sale como
   «Entrega en …»; vacía, «Entrega a domicilio · consulta zona»).
-- **Restaurar ejemplo**, al pie (con confirmación): vuelve a los datos de ejemplo.
 
-Las fotos se reducen a 900 px de lado en JPEG antes de guardarlas; si una no cabe en el navegador, el panel lo
-dice y no la añade (en un producto nuevo se comprueba antes de guardarlo). Si el panel está abierto en dos
-pestañas, cada una guarda solo lo que cambia (en la ficha de un producto, solo los campos tocados en esa
-pestaña) sobre lo último guardado, y la otra se actualiza sola sin tocar lo que se está escribiendo; si otra
-pestaña cambia las fotos de la ficha abierta, se traen y se avisa.
-
-## Límite importante: se guarda solo en ese navegador
-
-Los cambios del panel viven en el `localStorage` del navegador donde se hacen. **Los clientes no los ven**:
-ven el contenido de ejemplo que va en los archivos. Además caben unos 5 MB (unas 25-40 fotos); si se
-llena, el panel avisa: «No cabe más: borra productos vendidos o usa fotos más pequeñas».
-
-Para la versión real hace falta guardar el contenido en un **servicio común** que lean todos:
-un pequeño servidor o servicio de datos (por ejemplo una API con base de datos, o un CMS sencillo) con
-`GET` del contenido para la web y `PUT` protegido por usuario y contraseña para el panel, y las fotos
-en un almacenamiento de archivos. `js/contenido.js` ya concentra la lectura y el guardado: bastaría con
-cambiar `cargarContenido()` y `guardarContenido()` por llamadas a ese servicio. También habría que poner
-acceso con contraseña al panel y una copia de seguridad.
+No hay «Restaurar ejemplo»: el panel trabaja con los datos reales y nada en él borra todo de golpe.
+Las fotos se reducen y se suben al momento (ver «Cómo funcionan los datos»); si una no se puede subir (sin
+conexión, demasiado grande), el panel lo dice y no la añade. Copias de seguridad: `supabase/LEEME.md`, apartado 6.
 
 ## Publicar en GitHub Pages
 
 Todas las rutas son relativas y no hay nada que compilar: basta con subir la carpeta a un repositorio y,
 en *Settings → Pages*, servir la rama principal desde la raíz. Pesa unos 600 KB.
 
-Ojo: al estar publicada, `admin.html` también es accesible por cualquiera (sin contraseña), pero lo que se
-cambie ahí solo se guarda en el navegador de quien lo cambia: no altera lo que ven los demás.
+`admin.html` también está publicada, pero sin una cuenta de `editores` no deja ver ni cambiar nada: las
+reglas de la base de datos (RLS) solo dejan escribir a los editores, aunque alguien use la clave pública
+de `config.js` por su cuenta.
+
+## Seguridad
+
+- **Política de contenido (CSP)** en `index.html` y `admin.html` (`<meta http-equiv="Content-Security-Policy">`):
+  solo scripts, estilos y fuentes de la propia web; conexiones solo a Supabase; imágenes de la web, de
+  Supabase y `blob:`/`data:` (vistas previas del panel). Por eso no hay ningún `<script>` ni `style=""` dentro
+  del HTML (salvo los datos para Google en `application/ld+json`, que no se ejecutan): todo va en `js/` y `css/`.
+  Si cambia el proyecto de Supabase, hay que cambiar su dirección también en esas dos etiquetas.
+- **Nada de marcos de otras webs** (*clickjacking*): `js/marco.js` saca la página de cualquier `<iframe>`. En
+  el panel, `css/marco.css` la oculta hasta comprobarlo; en la web no se oculta (sin JavaScript se sigue viendo).
+  GitHub Pages no deja poner la cabecera `frame-ancestors`; con dominio propio y un proxy, mejor ponerla.
+- **Sesión del panel en `localStorage`**: se queda abierta en el móvil de la dueña, como quiere. El riesgo:
+  `localStorage` es de todo el *origen*, y en GitHub Pages el origen es `https://eduardolar.github.io`,
+  compartido con cualquier otra web publicada en esa misma cuenta (`eduardolar.github.io/otra-web/`): si una
+  de ellas tuviera un fallo que permitiera ejecutar código, podría leer la sesión. Mientras tanto: no
+  publicar en esa cuenta webs de terceros ni con código sin revisar. **Se resuelve con un dominio propio**
+  (p. ej. `siesttaydescanso.es`), que es un origen solo para esta web. Además, en Supabase conviene acortar
+  la sesión por inactividad (`supabase/LEEME.md`, paso 7).
+- Los tokens nunca van en la dirección (al volver del correo de «contraseña olvidada» se borran en el
+  acto) ni en la consola; todo lo que se pinta va con `textContent`.
 
 ## De dónde salen los datos
 
@@ -149,7 +228,7 @@ dirección, teléfono/WhatsApp, qué venden y servicios (entrega a domicilio, en
 pago con tarjeta o móvil). La nota (4,4 con 28 opiniones) y las tres opiniones son reseñas públicas de su
 ficha de Google (noviembre de 2026). «Desde 2003» es la fecha de constitución de Siestta y Descanso, S.L.
 
-## Es un prototipo: qué hay que confirmar con la tienda
+## Qué hay que confirmar con la tienda
 
 - **Horario del sábado** (10:00–13:30): es una suposición; no aparece en sus redes ni en Google.
   El de lunes a viernes sí sale en su ficha.

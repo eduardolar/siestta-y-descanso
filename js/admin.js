@@ -1,22 +1,28 @@
 // Panel de la tienda: la dueña cambia productos, horario, aviso, textos y contacto.
-// Todo se guarda solo, en este navegador (ver js/contenido.js). Es un prototipo sin contraseña.
+// Se entra con correo y contraseña (Supabase Auth) y solo si la cuenta está en «editores».
+// Todo se guarda solo, en la base de datos (ver js/datos.js), y lo ven todos al momento.
 // Los datos se pintan siempre con textContent; nunca innerHTML con lo que escribe la persona.
 //
-// Para no pisar lo que se haya cambiado en otra pestaña, cada guardado relee lo último que hay
-// guardado y aplica encima SOLO el cambio que se acaba de hacer (un producto, un campo).
+// Para no pisar lo que haya cambiado otra persona (otro móvil, otra pestaña), cada guardado envía
+// SOLO lo que se acaba de cambiar (unos campos de un producto, o los ajustes) y solo si nadie lo ha
+// cambiado desde que se leyó (actualizado_en). Si sí, se recarga eso y se avisa.
 (function () {
   'use strict';
 
   var C = window.Contenido;
-  if (!C || !window.cargarContenido) return;
+  var D = window.Datos;
+  if (!C || !window.cargarContenido || !D) return;
+  var S = D.Sesion;
 
-  var contenido = window.cargarContenido();
+  var contenido = C.normalizar({ productos: [] });
+  var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
+  var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261122-19';
+  var V = '20261123-4';
 
-  var MENSAJE_CUOTA = 'No cabe más: borra productos vendidos o usa fotos más pequeñas.';
-  var MENSAJE_ERROR = 'No se ha podido guardar en este navegador. Puede que esté en modo privado o sin espacio.';
-  var MENSAJE_FALTA = 'Ese producto ya no está: se ha borrado en otra pestaña.';
+  var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
+  var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
+  var MAX_FOTO = 590 * 1024; // el bucket admite 600 KB
 
   function $(id) { return document.getElementById(id); }
   function el(etiqueta, clase, texto) {
@@ -27,7 +33,8 @@
   }
   function copiar(o) { return JSON.parse(JSON.stringify(o)); }
   function contar(campo, cuenta, max) { cuenta.textContent = Array.from(campo.value).length + ' / ' + max; }
-  function srcFoto(f) { return f.indexOf('data:') === 0 ? f : f + '?v=' + V; }
+  function srcFoto(f) { return C.urlFoto(f, V); }
+  var E = window.Escaparate.piezas;
 
   // ---------- Aviso flotante (toast) ----------
   // Va en la capa de arriba (popover) para verse aunque se haya bajado o haya una ficha abierta.
@@ -91,34 +98,176 @@
     if (ok) temporizadorGuardado = setTimeout(function () { g.textContent = ''; delete g.dataset.estado; }, 4000);
   }
 
-  // Relee lo último guardado, le aplica el cambio y lo guarda. Si el cambio devuelve false
-  // (p. ej. el producto ya no existe), no se guarda nada. Devuelve { ok, motivo }.
-  // Si el cambio deja la portada sin su producto destacado (vendido o borrado), r.portadaQuitada = true.
-  function aplicar(cambio) {
-    var base = window.cargarContenido();
-    var destacadoAntes = base.portada.destacado;
-    if (cambio(base) === false) {
-      contenido = base;
-      return { ok: false, motivo: 'falta' };
-    }
-    var nuevo = C.normalizar(base);
-    var r = window.guardarContenido(nuevo);
-    if (r.ok) {
-      contenido = nuevo;
-      avisarGuardado(true);
-      r.portadaQuitada = !!destacadoAntes && base.portada.destacado === destacadoAntes && !nuevo.portada.destacado;
-    } else {
-      avisarGuardado(false);
-      avisar(r.motivo === 'cuota' ? MENSAJE_CUOTA : MENSAJE_ERROR, { error: true });
-    }
-    return r;
-  }
-
   function enCopia(c, id) {
     for (var i = 0; i < c.productos.length; i++) if (c.productos[i].id === id) return c.productos[i];
     return null;
   }
   function buscar(id) { return enCopia(contenido, id); }
+
+  // Los guardados van de uno en uno, en orden: así cada uno usa el actualizado_en del anterior
+  // y no choca consigo mismo
+  var cola = Promise.resolve();
+  function enCola(fn) {
+    var r = cola.then(function () { return fn(); });
+    cola = r.then(function () {}, function () {});
+    return r;
+  }
+
+  function textoError(e) {
+    if (!e) return D.MENSAJES.servidor;
+    if (e.tipo === 'red') return 'Sin conexión: no se ha guardado. Revisa internet y vuelve a intentarlo.';
+    if (e.tipo === 'tiempo') return 'El servidor no contesta: no se ha guardado. Vuelve a intentarlo.';
+    if (e.tipo === 'sesion') return 'La sesión ha caducado: no se ha guardado. Vuelve a entrar e inténtalo otra vez.';
+    return e.mensaje || D.MENSAJES.servidor;
+  }
+
+  // Tras un fallo: el aviso claro y, si hace falta, se repinta con lo recargado
+  var fallos = 0; // cuántos guardados han fallado (para no cerrar sesión con algo sin guardar)
+  function informarFallo(r) {
+    fallos++;
+    avisarGuardado(false);
+    if (r.motivo === 'conflicto') { avisar(MENSAJE_CONFLICTO, { error: true }); trasRecargar(true); }
+    else if (r.motivo === 'falta') { avisar(MENSAJE_FALTA, { error: true }); trasRecargar(true); }
+    else avisar(textoError(r.error), { error: true });
+  }
+
+  function guardarCache() { window.guardarContenido(contenido); }
+
+  // Pone (o quita, con fila null) un producto con lo que devuelve la base de datos
+  function ponerFila(fila, ref) {
+    var id = fila ? fila.ref : ref;
+    var lista = contenido.productos.slice();
+    var i = -1;
+    lista.forEach(function (p, n) { if (p.id === id) i = n; });
+    if (fila) {
+      var p = D.deFila(fila);
+      if (i === -1) lista.unshift(p); else lista[i] = p;
+      meta.productos[id] = fila.actualizado_en;
+    } else {
+      if (i !== -1) lista.splice(i, 1);
+      delete meta.productos[id];
+    }
+    var c = copiar(contenido);
+    c.productos = lista;
+    contenido = C.normalizar(c);
+    guardarCache();
+  }
+
+  function ponerAjustes(fila) {
+    var c = copiar(fila.datos);
+    c.version = C.VERSION;
+    c.productos = contenido.productos;
+    contenido = C.normalizar(c);
+    meta.ajustes = fila.actualizado_en;
+    guardarCache();
+  }
+
+  // Trae del servidor un producto (o nota que ya no está). Resuelve true si sigue existiendo
+  function recargarProducto(ref) {
+    return S.conSesion(function (tk) { return D.leerProducto(ref, tk); }).then(function (fila) {
+      ponerFila(fila, ref);
+      return !!fila;
+    }, function () { return true; });
+  }
+
+  function recargarAjustes() {
+    return S.conSesion(function (tk) { return D.leerAjustes(tk); }).then(ponerAjustes, function () {});
+  }
+
+  // Guarda unos campos (nombres de contenido.js) de un producto, solo si nadie lo ha cambiado.
+  // Resuelve { ok: true } o { ok: false, motivo: 'conflicto' | 'falta' | 'error', error }
+  function guardarCampos(ref, campos) {
+    $('guardado').textContent = 'Guardando…';
+    $('guardado').dataset.estado = 'pendiente';
+    return enCola(function () {
+      if (!meta.productos[ref]) return { ok: false, motivo: 'falta' };
+      return S.conSesion(function (tk) {
+        return D.cambiarProducto(ref, D.aFila(campos, Object.keys(campos)), meta.productos[ref], tk);
+      }).then(function (fila) {
+        if (fila) { ponerFila(fila); return { ok: true }; }
+        return recargarProducto(ref).then(function (sigue) { return { ok: false, motivo: sigue ? 'conflicto' : 'falta' }; });
+      }, function (e) { return { ok: false, motivo: 'error', error: e }; });
+    }).then(function (r) {
+      if (r.ok) avisarGuardado(true); else informarFallo(r);
+      return r;
+    });
+  }
+
+  // Cambia los ajustes (tienda, portada, opiniones…): cambio(c) toca solo su parte de una copia
+  // del contenido; se envía entero (datos), solo si nadie lo ha cambiado desde que se leyó
+  function guardarAjustes(cambio) {
+    $('guardado').textContent = 'Guardando…';
+    $('guardado').dataset.estado = 'pendiente';
+    // Si otra persona ha cambiado los ajustes entretanto, se recargan y se vuelve a aplicar SOLO este
+    // cambio encima (lo que ella cambió se respeta); se avisa
+    function intento(veces) {
+      var copia = copiar(contenido);
+      if (cambio(copia) === false) return { ok: false, motivo: 'falta' };
+      var datos = D.ajustesDe(copia);
+      return S.conSesion(function (tk) { return D.cambiarAjustes(datos, meta.ajustes, tk); }).then(function (fila) {
+        if (fila) { ponerAjustes(fila); return { ok: true, reintento: veces > 0 }; }
+        return recargarAjustes().then(function () {
+          return veces < 2 ? intento(veces + 1) : { ok: false, motivo: 'conflicto' };
+        });
+      }, function (e) { return { ok: false, motivo: 'error', error: e }; });
+    }
+    return enCola(function () { return intento(0); }).then(function (r) {
+      if (r.ok) avisarGuardado(true); else informarFallo(r);
+      if (r.reintento) {
+        trasRecargar(false);
+        // Después del aviso de quien llama («Guardado»…), para que se lea este
+        setTimeout(function () {
+          avisar('Otra persona había cambiado los datos de la tienda: se ha recargado y se ha guardado tu cambio encima.', { duracion: 6000 });
+        }, 0);
+      }
+      return r;
+    });
+  }
+
+  // Cambia el estado. Si era el destacado de la portada y se vende, la base de datos deja la portada
+  // sin destacado: se recargan los ajustes y r.portadaQuitada lo dice
+  function cambiarEstado(id, estado) {
+    var eraDestacado = contenido.portada.destacado === id;
+    return guardarCampos(id, { estado: estado }).then(function (r) {
+      if (!r.ok || estado !== 'vendido' || !eraDestacado) return r;
+      return enCola(recargarAjustes).then(function () {
+        r.portadaQuitada = contenido.portada.destacado !== id;
+        return r;
+      });
+    });
+  }
+
+  // ---------- Fotos en el bucket ----------
+
+  // Sube una foto ya reducida y devuelve su ruta (productos/{ref}/{uuid}.jpg o portada/{uuid}.jpg)
+  function subirFoto(blob, ref) {
+    var ruta = D.nuevaRutaFoto(ref);
+    return S.conSesion(function (tk) { return D.subirFoto(ruta, blob, tk); });
+  }
+
+  // Borrar del bucket: si falla, no bloquea (como mucho queda un archivo que no se ve)
+  function borrarDelBucket(rutas) {
+    var delBucket = (rutas || []).filter(C.esRutaAlmacen);
+    if (!delBucket.length) return Promise.resolve();
+    return S.conSesion(function (tk) { return D.borrarFotos(delBucket, tk); }).catch(function () {});
+  }
+
+  // La foto quitada se borra del bucket pasado el «Deshacer» (y solo si nadie la usa ya)
+  var porBorrar = {};
+  function enUso(ruta) {
+    if (borrador && borrador.fotos.indexOf(ruta) !== -1) return true;
+    if (contenido.portada.foto === ruta) return true;
+    return contenido.productos.some(function (p) { return p.fotos.indexOf(ruta) !== -1; });
+  }
+  function borrarLuego(ruta) {
+    if (!C.esRutaAlmacen(ruta)) return;
+    clearTimeout(porBorrar[ruta]);
+    porBorrar[ruta] = setTimeout(function () {
+      delete porBorrar[ruta];
+      if (!enUso(ruta)) borrarDelBucket([ruta]);
+    }, 6500);
+  }
+  function noBorrar(ruta) { clearTimeout(porBorrar[ruta]); delete porBorrar[ruta]; }
 
   function errorCampo(id, texto) {
     var e = $(id + '-error');
@@ -200,6 +349,27 @@
 
   // ---------- Productos: lista ----------
 
+  // Icono del sprite de admin.html (<symbol id="i-…">)
+  function icono(nombre) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var s = document.createElementNS(NS, 'svg');
+    s.setAttribute('class', 'icono');
+    s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('focusable', 'false');
+    var u = document.createElementNS(NS, 'use');
+    u.setAttribute('href', '#i-' + nombre);
+    s.appendChild(u);
+    return s;
+  }
+
+  function sinFoto(p) {
+    var m = el('span', 'item__marcador');
+    m.appendChild(icono('cat-' + (C.CATEGORIAS[p.categoria] ? p.categoria : 'sofas')));
+    m.appendChild(el('span', 'item__sin-foto', 'Sin foto'));
+    return m;
+  }
+
+  // La foto grande de la tarjeta, con la pastilla de la etiqueta y la franja de reservado o vendido (como en la web)
   function miniatura(p) {
     var caja = el('div', 'item__foto');
     var foto = C.fotoPrincipal(p);
@@ -207,25 +377,52 @@
       var img = el('img');
       img.src = srcFoto(foto);
       img.alt = '';
-      img.width = 72;
-      img.height = 72;
+      img.width = 400;
+      img.height = 400;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      // Si la foto ya no está (p. ej. se borró del bucket), «Sin foto» en su lugar
+      E.siFalla(img, function (i) { if (i.parentNode) i.parentNode.replaceChild(sinFoto(p), i); });
       caja.appendChild(img);
     } else {
-      caja.appendChild(el('span', 'item__sin-foto', 'Sin foto'));
+      caja.appendChild(sinFoto(p));
     }
+    if (p.etiqueta) caja.appendChild(el('span', 'pastilla pastilla--' + p.etiqueta, C.ETIQUETAS[p.etiqueta]));
+    if (p.estado !== 'disponible') caja.appendChild(el('span', 'producto__sello item__sello--' + p.estado, C.ESTADOS[p.estado]));
     return caja;
   }
 
-  function botonAccion(texto, accion, p, clase) {
-    var b = el('button', 'accion' + (clase ? ' ' + clase : ''), texto);
+  function botonAccion(texto, accion, p, clase, ico) {
+    var b = el('button', 'accion' + (clase ? ' ' + clase : ''));
     b.type = 'button';
     b.dataset.accion = accion;
     b.dataset.id = p.id;
     b.setAttribute('aria-label', texto + ': ' + p.nombre);
+    if (ico) b.appendChild(icono(ico));
+    b.appendChild(el('span', 'accion__texto', texto));
     return b;
   }
 
-  var ICONO_ESTADO = { disponible: '✓ ', reservado: '⏸ ', vendido: '✕ ' };
+  // Resumen de arriba: «7 productos · 1 reservado · 3 en oferta» (de lo que está en la web). «En oferta»: etiqueta
+  // «Oferta» o precio rebajado. Reservados y ofertas solo salen si hay alguno
+  function pintarResumen(enWeb) {
+    var ul = $('resumen');
+    if (!ul) return;
+    var reservados = enWeb.filter(function (p) { return p.estado === 'reservado'; }).length;
+    var ofertas = enWeb.filter(function (p) { return p.etiqueta === 'oferta' || p.precioAntes !== null; }).length;
+    ul.textContent = '';
+    [
+      [enWeb.length, enWeb.length === 1 ? 'producto' : 'productos', 'total'],
+      [reservados, reservados === 1 ? 'reservado' : 'reservados', 'reservado'],
+      [ofertas, 'en oferta', 'oferta']
+    ].forEach(function (x, i) {
+      if (i > 0 && !x[0]) return;
+      var li = el('li', 'resumen__dato resumen__dato--' + x[2]);
+      li.appendChild(el('strong', 'resumen__cifra', String(x[0])));
+      li.appendChild(el('span', 'resumen__texto', ' ' + x[1]));
+      ul.appendChild(li);
+    });
+  }
 
   function pintarLista(enfoque) {
     var lista = $('lista');
@@ -239,6 +436,7 @@
     var vendidos = contenido.productos.filter(function (p) { return p.estado === 'vendido'; });
     $('cuenta-web').textContent = enWeb.length;
     $('cuenta-vendidos').textContent = vendidos.length;
+    pintarResumen(enWeb);
     Array.prototype.forEach.call(document.querySelectorAll('[data-vista]'), function (b) {
       b.setAttribute('aria-pressed', b.dataset.vista === vista ? 'true' : 'false');
     });
@@ -253,23 +451,21 @@
       var nombre = el('p', 'item__nombre', p.nombre);
       nombre.title = p.nombre;
       datos.appendChild(nombre);
-      var linea = el('p', 'item__linea');
-      linea.appendChild(el('span', 'item__precio', p.precio === null ? 'Consultar' : C.formatearPrecio(p.precio)));
-      linea.appendChild(el('span', 'item__estado item__estado--' + p.estado, ICONO_ESTADO[p.estado] + C.ESTADOS[p.estado]));
-      if (p.etiqueta) linea.appendChild(el('span', 'item__etiqueta', C.ETIQUETAS[p.etiqueta]));
-      datos.appendChild(linea);
+      var precio = E.crearPrecio(p);
+      precio.classList.add('item__precio');
+      datos.appendChild(precio);
       li.appendChild(datos);
 
       var acciones = el('div', 'item__acciones');
       if (p.estado === 'vendido') {
-        acciones.appendChild(botonAccion('Volver a ponerlo a la venta', 'recuperar', p, 'accion--ancha'));
-        acciones.appendChild(botonAccion('Editar', 'editar', p));
+        acciones.appendChild(botonAccion('Volver a la venta', 'recuperar', p, 'accion--ancha accion--fila', 'volver'));
+        acciones.appendChild(botonAccion('Editar', 'editar', p, 'accion--ancha accion--fila', 'editar'));
       } else {
         acciones.appendChild(p.estado === 'reservado'
-          ? botonAccion('Quitar reserva', 'reserva', p, 'accion--reservado')
-          : botonAccion('Marcar reservado', 'reserva', p));
-        acciones.appendChild(botonAccion('Marcar vendido', 'vendido', p));
-        acciones.appendChild(botonAccion('Editar', 'editar', p, 'accion--ancha-movil'));
+          ? botonAccion('Quitar reserva', 'reserva', p, 'accion--reservado', 'quitar-reserva')
+          : botonAccion('Reservar', 'reserva', p, null, 'reservar'));
+        acciones.appendChild(botonAccion('Vender', 'vendido', p, null, 'vendido'));
+        acciones.appendChild(botonAccion('Editar', 'editar', p, 'accion--ancha accion--fila', 'editar'));
       }
       li.appendChild(acciones);
       lista.appendChild(li);
@@ -277,7 +473,7 @@
 
     vacia.hidden = elegidos.length > 0;
     vacia.textContent = vista === 'web'
-      ? 'No hay productos en la web. Pulsa «Añadir producto» para poner el primero.'
+      ? 'Aún no hay productos.'
       : 'No hay productos vendidos.';
 
     if (enfoque) {
@@ -294,57 +490,49 @@
     pintarLista();
   });
 
-  function cambiarEstado(id, estado) {
-    return aplicar(function (c) {
-      var x = enCopia(c, id);
-      if (!x) return false;
-      x.estado = estado;
-    });
-  }
-
   $('lista').addEventListener('click', function (e) {
     var b = e.target.closest('[data-accion]');
     if (!b) return;
     var id = b.dataset.id;
     var p = buscar(id);
     if (!p) return;
-    var r;
 
     switch (b.dataset.accion) {
       case 'reserva':
         var nuevo = p.estado === 'reservado' ? 'disponible' : 'reservado';
-        r = cambiarEstado(id, nuevo);
-        if (r.ok) avisar((nuevo === 'reservado' ? 'Reservado: ' : 'Disponible otra vez: ') + p.nombre);
-        else if (r.motivo === 'falta') avisar(MENSAJE_FALTA, { error: true });
-        pintarLista({ id: id, accion: 'reserva' });
+        cambiarEstado(id, nuevo).then(function (r) {
+          if (r.ok) avisar((nuevo === 'reservado' ? 'Reservado: ' : 'Disponible otra vez: ') + p.nombre);
+          pintarLista({ id: id, accion: 'reserva' });
+        });
         break;
       case 'vendido':
         var antes = p.estado;
-        r = cambiarEstado(id, 'vendido');
-        if (r.ok) {
-          var sinPortada = r.portadaQuitada;
-          avisar('Vendido: ' + p.nombre + '. Ya no se ve en la web' + (sinPortada ? ' ni en la portada.' : '.'), {
-            accion: {
-              texto: 'Deshacer',
-              hacer: function () {
-                var d = aplicar(function (c) {
-                  var x = enCopia(c, id);
-                  if (!x) return false;
-                  x.estado = antes;
-                  if (sinPortada) c.portada.destacado = id;
-                });
-                if (d.ok) avisar('Deshecho: ' + p.nombre + ' vuelve a la web.');
-                pintarLista();
+        cambiarEstado(id, 'vendido').then(function (r) {
+          if (r.ok) {
+            var sinPortada = r.portadaQuitada;
+            avisar('Vendido: ' + p.nombre + '. Ya no se ve en la web' + (sinPortada ? ' ni en la portada.' : '.'), {
+              accion: {
+                texto: 'Deshacer',
+                hacer: function () {
+                  guardarCampos(id, { estado: antes }).then(function (d) {
+                    if (!d.ok) { pintarLista(); return d; }
+                    return (sinPortada ? guardarAjustes(function (c) { c.portada.destacado = id; }) : Promise.resolve(d)).then(function () {
+                      avisar('Deshecho: ' + p.nombre + ' vuelve a la web.');
+                      pintarLista();
+                    });
+                  });
+                }
               }
-            }
-          });
-        } else if (r.motivo === 'falta') avisar(MENSAJE_FALTA, { error: true });
-        pintarLista({ id: '', accion: '' });
+            });
+          }
+          pintarLista({ id: '', accion: '' });
+        });
         break;
       case 'recuperar':
-        r = cambiarEstado(id, 'disponible');
-        if (r.ok) avisar('De vuelta en la web: ' + p.nombre);
-        pintarLista({ id: '', accion: '' });
+        cambiarEstado(id, 'disponible').then(function (r) {
+          if (r.ok) avisar('De vuelta en la web: ' + p.nombre);
+          pintarLista({ id: '', accion: '' });
+        });
         break;
       case 'editar':
         abrirFicha(p);
@@ -397,6 +585,7 @@
       mini.alt = '';
       mini.width = 56;
       mini.height = 56;
+      E.siFalla(mini, function (i) { i.alt = 'No se ve'; i.classList.add('foto-rota'); });
       li.appendChild(mini);
       if (i === 0) {
         li.appendChild(el('span', 'foto-item__principal', 'Principal'));
@@ -449,6 +638,8 @@
     var p = C.normalizarProducto(copiar(borrador), {});
     if (!p) p = C.normalizarProducto(Object.assign(copiar(borrador), { nombre: 'Nombre del producto' }), {});
     p.id = borrador.id;
+    // En uno nuevo, si cambia la categoría cambia la ref: sus fotos se mueven a la ref nueva al añadirlo
+    p.fotos = borrador.fotos.filter(C.fotoValida).slice(0, C.LIMITES.fotos);
     ul.appendChild(window.Escaparate.crearTarjeta(p, contenido.tienda));
     // El enlace a la ficha de la web, solo si ya está guardado y se ve en la web
     var guardado = !esNuevo && buscar(borrador.id);
@@ -523,9 +714,53 @@
     $(errores[0]).focus();
   }
 
+  // Pone en el formulario los datos de p. Con respetarFoco, no toca el campo que se está escribiendo
+  function rellenarFicha(p, respetarFoco) {
+    var foco = respetarFoco ? document.activeElement : null;
+    function poner(id, prop, valor) { if ($(id) !== foco) $(id)[prop] = valor; }
+    function radioSi(nombre, valor) {
+      if (foco && foco.name === nombre) return;
+      radio(nombre, valor);
+    }
+    poner('f-nombre', 'value', p.nombre);
+    radioSi('categoria', p.categoria);
+    radioSi('etiqueta', p.etiqueta);
+    poner('f-precio', 'value', textoNumero(p.precio));
+    poner('f-antes', 'value', textoNumero(p.precioAntes));
+    poner('f-destacado', 'checked', p.destacado);
+    poner('f-descripcion', 'value', p.descripcion);
+    poner('f-larga', 'value', p.descripcionLarga);
+    poner('f-medidas', 'value', p.medidas);
+    poner('f-colores', 'value', p.colores);
+    radioSi('firmeza', p.firmeza);
+    poner('f-amedida', 'checked', p.aMedida);
+    poner('f-plazo', 'value', p.plazo);
+    poner('f-portada', 'checked', !esNuevo && contenido.portada.destacado === p.id);
+    $('f-portada-caja').hidden = p.estado === 'vendido';
+  }
+
+  // Otra persona ha cambiado el producto abierto: se trae lo suyo (sin tocar el campo que se escribe)
+  function refrescarFicha() {
+    if (!ficha.open || !borrador || esNuevo) return;
+    var x = buscar(borrador.id);
+    if (!x) { cerrarFicha(); return; }
+    alAbrir = copiar(x);
+    borrador.fotos = copiar(x.fotos);
+    borrador.estado = x.estado;
+    rellenarFicha(x, true);
+    leerFicha();
+    pintarFotos();
+    pintarPrevia();
+  }
+
+  var huellas = {};    // huella de cada foto subida en esta ficha → su ruta (para no subir la misma dos veces)
+  var blobsNuevo = {}; // en un producto nuevo: ruta → la foto, por si hay que subirla con otra ref
+
   function abrirFicha(p) {
     esNuevo = !p;
     alAbrir = p ? copiar(p) : null;
+    huellas = {};
+    blobsNuevo = {};
     var usados = {};
     contenido.productos.forEach(function (x) { usados[x.id] = true; });
     borrador = p ? copiar(p) : {
@@ -535,26 +770,13 @@
     };
     $('ficha-titulo').textContent = esNuevo ? 'Nuevo producto' : 'Editar producto';
     $('ficha-ref').textContent = 'Ref. ' + borrador.id;
-    $('f-nombre').value = borrador.nombre;
     delete $('f-nombre').dataset.tocado;
-    radio('categoria', borrador.categoria);
-    radio('etiqueta', borrador.etiqueta);
-    $('f-precio').value = textoNumero(borrador.precio);
-    $('f-antes').value = textoNumero(borrador.precioAntes);
+    rellenarFicha(borrador, false);
     $('f-antes-caja').open = borrador.precioAntes !== null;
-    $('f-destacado').checked = borrador.destacado;
-    $('f-portada').checked = !esNuevo && contenido.portada.destacado === borrador.id;
-    $('f-portada-caja').hidden = borrador.estado === 'vendido';
-    $('f-descripcion').value = borrador.descripcion;
-    $('f-larga').value = borrador.descripcionLarga;
-    $('f-medidas').value = borrador.medidas;
-    $('f-colores').value = borrador.colores;
-    radio('firmeza', borrador.firmeza);
-    $('f-amedida').checked = borrador.aMedida;
-    $('f-plazo').value = borrador.plazo;
     // Plegado en el alta rápida; abierto si ya tiene algún detalle
     $('f-mas').open = !!(borrador.descripcionLarga || borrador.medidas || borrador.colores ||
       borrador.firmeza || borrador.aMedida || borrador.plazo);
+    $('ficha-guardar').disabled = false;
     $('foto-estado').textContent = '';
     $('ficha-error').textContent = '';
     $('ficha-cancelar').hidden = !esNuevo;
@@ -568,9 +790,12 @@
     $('f-nombre').focus();
   }
 
-  function cerrarFicha() {
+  // descartar: un producto nuevo que no se añade (sus fotos ya subidas se borran del bucket)
+  function cerrarFicha(descartar) {
     clearTimeout(temporizadorFicha);
     if (ficha.open) ficha.close();
+    if (descartar === true && esNuevo && borrador) borrarDelBucket(borrador.fotos);
+    blobsNuevo = {};
     borrador = null;
     pintarLista();
     var b = $('anadir');
@@ -586,30 +811,39 @@
     'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo'];
   var alAbrir = null;  // el producto tal como estaba al abrir la ficha (o tras el último guardado de esta pestaña)
 
-  function camposCambiados() {
-    return CAMPOS_FICHA.filter(function (k) { return JSON.stringify(borrador[k]) !== JSON.stringify(alAbrir[k]); });
+  // El borrador tal como se guardaría (con los textos ya limpios, como los acepta la base de datos)
+  function borradorLimpio() {
+    var p = C.normalizarProducto(copiar(borrador), {});
+    if (p) { p.id = borrador.id; p.fotos = C.normalizarFotos(borrador.fotos, borrador.id); }
+    return p;
   }
 
+  // Guarda en la base de datos los campos cambiados de la ficha abierta. Devuelve una promesa
+  // con { ok } o { ok: false, errores } si hay algo en rojo
   function guardarEdicion() {
     clearTimeout(temporizadorFicha);
-    if (esNuevo || !borrador) return { ok: true };
+    if (esNuevo || !borrador) return Promise.resolve({ ok: true });
     var errores = leerFicha();
-    if (errores.length) return { ok: false, errores: errores };
-    var copia = copiar(borrador);
-    var cambiados = camposCambiados();
-    if (!cambiados.length) return { ok: true };
-    var r = aplicar(function (c) {
-      var x = enCopia(c, copia.id);
-      if (!x) return false;
-      cambiados.forEach(function (k) { x[k] = copia[k]; });
+    if (errores.length) return Promise.resolve({ ok: false, errores: errores });
+    var limpio = borradorLimpio();
+    var cambiados = CAMPOS_FICHA.filter(function (k) { return JSON.stringify(limpio[k]) !== JSON.stringify(alAbrir[k]); });
+    // Sin cambios: se espera a que acabe lo que se esté guardando
+    if (!cambiados.length) return enCola(function () { return { ok: true }; });
+    var id = borrador.id;
+    var campos = {};
+    cambiados.forEach(function (k) { campos[k] = limpio[k]; });
+    return guardarCampos(id, campos).then(function (r) {
+      if (!borrador || borrador.id !== id) return r;
+      if (r.ok) {
+        var guardado = buscar(id);
+        cambiados.forEach(function (k) { alAbrir[k] = guardado ? copiar(guardado[k]) : campos[k]; });
+        $('ficha-error').textContent = '';
+      } else {
+        $('ficha-error').textContent = r.motivo === 'conflicto' ? MENSAJE_CONFLICTO
+          : r.motivo === 'falta' ? MENSAJE_FALTA : textoError(r.error);
+      }
+      return r;
     });
-    if (r.ok) {
-      var guardado = buscar(copia.id);
-      cambiados.forEach(function (k) { alAbrir[k] = guardado ? copiar(guardado[k]) : copia[k]; });
-      $('ficha-error').textContent = '';
-    }
-    else $('ficha-error').textContent = r.motivo === 'cuota' ? MENSAJE_CUOTA : r.motivo === 'falta' ? MENSAJE_FALTA : MENSAJE_ERROR;
-    return r;
   }
 
   function tieneAlgo() {
@@ -621,33 +855,41 @@
 
   // Cerrar con la X, «Cancelar», Esc o tocando fuera
   function cancelarFicha() {
-    if (!borrador || $('confirmar').open) return;
+    if (!borrador || $('confirmar').open || cerrando) return;
+    if (fotoTrabajando) { $('ficha-error').textContent = 'Espera un momento: se está subiendo la foto.'; return; }
     if (esNuevo) {
-      if (!tieneAlgo()) { cerrarFicha(); return; }
+      if (!tieneAlgo()) { cerrarFicha(true); return; }
       confirmar({
         texto: '¿Descartar este producto?', detalle: 'Se pierde lo que has puesto en la ficha.',
         si: 'Sí, descartar', no: 'Seguir con la ficha', peligro: true
-      }).then(function (si) { if (si) cerrarFicha(); });
+      }).then(function (si) { if (si) cerrarFicha(true); });
       return;
     }
-    var r = guardarEdicion();
-    if (r.ok) {
-      var nombre = borrador.nombre;
-      cerrarFicha();
-      avisar('Guardado: ' + nombre);
-      return;
-    }
-    if (r.errores) {
-      mostrarErrores(r.errores);
+    var errores = leerFicha();
+    if (errores.length) {
+      mostrarErrores(errores);
       confirmar({
         texto: 'Hay un dato sin corregir', detalle: 'Lo marcado en rojo no se puede guardar. Si sales ahora, ese cambio se pierde.',
         si: 'Salir sin ese cambio', no: 'Corregirlo', peligro: true
       }).then(function (si) {
         if (si) cerrarFicha();
-        else $(r.errores[0]).focus();
+        else $(errores[0]).focus();
       });
+      return;
     }
+    // Se espera a que se guarde: si falla, la ficha sigue abierta con lo escrito
+    var id = borrador.id;
+    var nombre = borrador.nombre;
+    cerrando = true;
+    $('ficha-guardar').disabled = true;
+    guardarEdicion().then(function (r) {
+      cerrando = false;
+      $('ficha-guardar').disabled = false;
+      if (!borrador || borrador.id !== id) return;
+      if (r.ok) { cerrarFicha(); avisar('Guardado: ' + nombre); }
+    });
   }
+  var cerrando = false;
 
   form.addEventListener('input', function (e) {
     if (e.target.type === 'file' || !borrador) return;
@@ -658,32 +900,88 @@
     temporizadorFicha = setTimeout(guardarEdicion, 500);
   });
 
+  // En un producto nuevo las fotos se suben con la ref que tenía al hacerlas. Si al añadirlo la ref es
+  // otra (cambió la categoría, u otra persona cogió esa ref a la vez), se vuelven a subir con la buena
+  // y se borran las de antes. Resuelve la lista de rutas buenas.
+  function alinearFotos(fotos, ref) {
+    var buenas = [];
+    var viejas = [];
+    return fotos.reduce(function (paso, ruta) {
+      return paso.then(function () {
+        if (C.fotoDeProducto(ruta, ref)) { buenas.push(ruta); return; }
+        var blob = blobsNuevo[ruta];
+        if (!blob) return; // no debería pasar: sin el archivo no se puede mover, se queda fuera
+        return subirFoto(blob, ref).then(function (nueva) {
+          blobsNuevo[nueva] = blob;
+          buenas.push(nueva);
+          viejas.push(ruta);
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      borrarDelBucket(viejas);
+      return buenas;
+    });
+  }
+
+  // Alta: se busca una ref libre (contando también las vendidas), se colocan las fotos y se crea la
+  // fila. Si otra persona ha creado esa ref justo a la vez (23505), se prueba con la siguiente
   function anadirNuevo() {
     var nuevo = copiar(borrador);
     var enPortada = $('f-portada').checked;
-    var r = aplicar(function (c) {
-      if (c.productos.length >= C.LIMITES.productos) return false;
-      var usados = {};
-      c.productos.forEach(function (x) { usados[x.id] = true; });
-      if (usados[nuevo.id]) nuevo.id = C.nuevoId(nuevo.categoria, usados);
-      c.productos.unshift(nuevo);
-      if (enPortada) c.portada.destacado = nuevo.id;
-    });
-    if (!r.ok) {
-      $('ficha-error').textContent = r.motivo === 'cuota' ? MENSAJE_CUOTA
-        : r.motivo === 'falta' ? 'Has llegado al máximo de ' + C.LIMITES.productos + ' productos. Borra alguno vendido para añadir otro.'
-        : MENSAJE_ERROR;
-      return;
+    var usadosServidor = {};
+    cerrando = true;
+    $('ficha-guardar').disabled = true;
+    $('ficha-error').textContent = '';
+    $('foto-estado').textContent = 'Añadiendo…';
+    function intento(veces) {
+      return S.conSesion(function (tk) { return D.referencias(tk); }).then(function (refs) {
+        var usados = {};
+        refs.forEach(function (r) { usados[r] = true; });
+        Object.keys(usadosServidor).forEach(function (r) { usados[r] = true; });
+        contenido.productos.forEach(function (x) { usados[x.id] = true; });
+        var prefijo = C.nuevoId(nuevo.categoria, {}).slice(0, 3);
+        if (usados[nuevo.id] || nuevo.id.slice(0, 3) !== prefijo) nuevo.id = C.nuevoId(nuevo.categoria, usados);
+        return alinearFotos(nuevo.fotos, nuevo.id);
+      }).then(function (fotos) {
+        nuevo.fotos = fotos;
+        if (borrador) { borrador.id = nuevo.id; borrador.fotos = fotos.slice(); $('ficha-ref').textContent = 'Ref. ' + nuevo.id; }
+        var limpio = C.normalizarProducto(copiar(nuevo), {});
+        limpio.id = nuevo.id;
+        return enCola(function () {
+          return S.conSesion(function (tk) { return D.crearProducto(limpio, tk); });
+        });
+      }).catch(function (e) {
+        if (e && e.tipo === 'duplicado' && veces < 4) {
+          usadosServidor[nuevo.id] = true;
+          return intento(veces + 1);
+        }
+        throw e;
+      });
     }
-    vista = 'web';
-    cerrarFicha();
-    avisar('Añadido a la web: ' + nuevo.nombre);
+    intento(0).then(function (fila) {
+      ponerFila(fila);
+      var hecho = enPortada ? guardarAjustes(function (c) { c.portada.destacado = fila.ref; }) : Promise.resolve();
+      return hecho.then(function () {
+        avisarGuardado(true);
+        vista = 'web';
+        blobsNuevo = {};
+        cerrando = false;
+        cerrarFicha();
+        avisar('Añadido a la web: ' + nuevo.nombre);
+      });
+    }).catch(function (e) {
+      cerrando = false;
+      $('ficha-guardar').disabled = false;
+      $('foto-estado').textContent = '';
+      $('ficha-error').textContent = textoError(e);
+      avisarGuardado(false);
+    });
   }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    if (!borrador) return;
-    if (fotoTrabajando) { $('ficha-error').textContent = 'Espera un momento: se está preparando la foto.'; return; }
+    if (!borrador || cerrando) return;
+    if (fotoTrabajando) { $('ficha-error').textContent = 'Espera un momento: se está subiendo la foto.'; return; }
     var errores = leerFicha();
     if (errores.length) { mostrarErrores(errores); return; }
     if (!esNuevo) { cancelarFicha(); return; }
@@ -718,22 +1016,50 @@
       si: 'Sí, borrar', no: 'No, volver', peligro: true
     }).then(function (si) {
       if (!si) return;
-      var r = aplicar(function (c) { c.productos = c.productos.filter(function (x) { return x.id !== id; }); });
-      if (r.ok) { cerrarFicha(); avisar('Borrado: ' + nombre + (r.portadaQuitada ? '. La portada queda sin destacado.' : '')); }
+      var eraDestacado = contenido.portada.destacado === id;
+      $('guardado').textContent = 'Guardando…';
+      $('guardado').dataset.estado = 'pendiente';
+      enCola(function () {
+        if (!meta.productos[id]) return { ok: false, motivo: 'falta' };
+        return S.conSesion(function (tk) { return D.borrarProducto(id, meta.productos[id], tk); }).then(function (fila) {
+          if (!fila) return recargarProducto(id).then(function (sigue) { return { ok: false, motivo: sigue ? 'conflicto' : 'falta' }; });
+          ponerFila(null, id);
+          // Sus fotos, del bucket (las de la fila y cualquier otra que hubiera en su carpeta)
+          var rutas = (fila.fotos || []).slice();
+          S.conSesion(function (tk) { return D.listarFotos('productos/' + id, tk); }).then(function (otras) {
+            return borrarDelBucket(rutas.concat(otras));
+          }, function () { return borrarDelBucket(rutas); });
+          return (eraDestacado ? recargarAjustes() : Promise.resolve()).then(function () { return { ok: true }; });
+        }, function (e) { return { ok: false, motivo: 'error', error: e }; });
+      }).then(function (r) {
+        if (!r.ok) { informarFallo(r); return; }
+        avisarGuardado(true);
+        cerrarFicha();
+        avisar('Borrado: ' + nombre + (eraDestacado && !contenido.portada.destacado ? '. La portada queda sin destacado.' : ''));
+      });
     });
   });
 
-  // ---------- Foto: se reduce a 900 px de lado y se guarda en JPEG ----------
+  // ---------- Foto: se reduce a 900 px de lado, en JPEG, y se sube al bucket ----------
 
+  function lienzoABlob(lienzo, calidad) {
+    return new Promise(function (resolver) { lienzo.toBlob(resolver, 'image/jpeg', calidad); });
+  }
+
+  // JPEG al 80 %; si pasara de ~590 KB (el bucket admite 600), se baja la calidad y, si aún no
+  // cabe, el tamaño
   function prepararFoto(archivo) {
     return new Promise(function (resolver, rechazar) {
       if (!archivo || !/^image\//.test(archivo.type)) { rechazar(new Error('tipo')); return; }
       var url = URL.createObjectURL(archivo);
       var img = new Image();
       img.onload = function () {
-        try {
-          var lado = Math.max(img.naturalWidth, img.naturalHeight);
-          var escala = Math.min(1, 900 / lado);
+        URL.revokeObjectURL(url);
+        var lado = Math.max(img.naturalWidth, img.naturalHeight);
+        var calidad = 0.8;
+        var maximo = 900;
+        function probar() {
+          var escala = Math.min(1, maximo / lado);
           var lienzo = document.createElement('canvas');
           lienzo.width = Math.max(1, Math.round(img.naturalWidth * escala));
           lienzo.height = Math.max(1, Math.round(img.naturalHeight * escala));
@@ -741,74 +1067,93 @@
           ctx.fillStyle = '#ffffff';            // fondo blanco para PNG con transparencias
           ctx.fillRect(0, 0, lienzo.width, lienzo.height);
           ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height);
-          var datos = lienzo.toDataURL('image/jpeg', 0.8);
-          URL.revokeObjectURL(url);
-          if (!C.fotoValida(datos)) { rechazar(new Error('formato')); return; }
-          resolver(datos);
-        } catch (err) {
-          URL.revokeObjectURL(url);
-          rechazar(err);
+          return lienzoABlob(lienzo, calidad).then(function (blob) {
+            if (!blob) throw new Error('formato');
+            if (blob.size <= MAX_FOTO) return blob;
+            if (calidad > 0.45) calidad -= 0.1;
+            else if (maximo > 400) maximo -= 150;
+            else throw new Error('grande');
+            return probar();
+          });
         }
+        probar().then(resolver, rechazar);
       };
       img.onerror = function () { URL.revokeObjectURL(url); rechazar(new Error('abrir')); };
       img.src = url;
     });
   }
 
-  // En un producto nuevo (aún sin guardar) se comprueba si cabría en el navegador: se prueba a guardar
-  // aparte un texto del mismo tamaño que la ficha y se borra al momento
-  function cabeNuevo() {
-    var clave = C.CLAVE + '-prueba';
-    try {
-      window.localStorage.setItem(clave, new Array(JSON.stringify(borrador).length + 1).join('x'));
-      window.localStorage.removeItem(clave);
-      return true;
-    } catch (e) {
-      try { window.localStorage.removeItem(clave); } catch (e2) { /* nada */ }
-      return false;
-    }
+  // Huella de la foto (para no subir la misma dos veces); '' si el navegador no sabe calcularla
+  function huella(blob) {
+    if (!window.crypto || !window.crypto.subtle || typeof blob.arrayBuffer !== 'function') return Promise.resolve('');
+    return blob.arrayBuffer().then(function (b) { return window.crypto.subtle.digest('SHA-256', b); }).then(function (h) {
+      return Array.prototype.map.call(new Uint8Array(h), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    }, function () { return ''; });
   }
 
-  // Se pueden elegir varias de la galería: se añaden por orden hasta llegar a 4
+  function textoFalloFoto(e) {
+    if (e && e.message === 'grande') return 'Esa foto es demasiado grande. Prueba con otra.';
+    if (e && (e.message === 'tipo' || e.message === 'abrir' || e.message === 'formato')) return 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
+    if (e && e.tipo === 'red') return 'Sin conexión: la foto no se ha subido. Revisa internet y vuelve a intentarlo.';
+    if (e && e.tipo === 'tiempo') return 'La foto tarda demasiado en subir. Vuelve a intentarlo.';
+    return e && e.tipo && e.mensaje ? e.mensaje : 'No se ha podido subir la foto. Vuelve a intentarlo.';
+  }
+
+  // Se pueden elegir varias de la galería: se reducen, se suben y se añaden por orden hasta llegar a 4.
+  // En uno que ya existe, cada foto se guarda en el producto al subirla
   function alElegirFoto(e) {
     var input = e.target;
     var archivos = Array.prototype.slice.call(input.files || []);
     input.value = '';
-    if (!archivos.length || !borrador) return;
+    if (!archivos.length || !borrador || fotoTrabajando) return;
     var sitio = C.LIMITES.fotos - borrador.fotos.length;
     if (sitio <= 0) { $('foto-estado').textContent = 'Ya hay ' + C.LIMITES.fotos + ' fotos. Quita una para poner otra.'; return; }
     var sobran = archivos.length > sitio;
     archivos = archivos.slice(0, sitio);
+    var ficha0 = borrador;
     fotoTrabajando = true;
-    $('foto-estado').textContent = 'Preparando la foto…';
+    $('foto-estado').textContent = archivos.length > 1 ? 'Subiendo las fotos…' : 'Subiendo la foto…';
     var hechas = 0;
     var fallo = '';
-    var siguiente = function () {
-      if (!archivos.length || fallo) {
-        fotoTrabajando = false;
-        $('foto-estado').textContent = fallo || ((hechas === 1 ? 'Foto lista ✓' : hechas + ' fotos listas ✓') +
-          (sobran ? ' Solo caben ' + C.LIMITES.fotos + '.' : ''));
-        pintarFotos();
-        pintarPrevia();
-        return;
-      }
-      prepararFoto(archivos.shift()).then(function (datos) {
-        if (!borrador) { fotoTrabajando = false; return; }
-        if (borrador.fotos.indexOf(datos) !== -1) { siguiente(); return; } // la misma foto dos veces
-        borrador.fotos.push(datos);
-        var r = esNuevo ? { ok: cabeNuevo(), motivo: 'cuota' } : guardarEdicion();
-        if (!r.ok && r.motivo === 'cuota') {
-          borrador.fotos.pop();
-          fallo = MENSAJE_CUOTA;
-        } else {
-          hechas++;
-        }
-        siguiente();
-      }, function () {
-        fallo = 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
+    function acabar() {
+      fotoTrabajando = false;
+      if (borrador !== ficha0) return;
+      $('foto-estado').textContent = fallo || ((hechas === 1 ? 'Foto lista ✓' : hechas + ' fotos listas ✓') +
+        (sobran ? ' Solo caben ' + C.LIMITES.fotos + '.' : ''));
+      pintarFotos();
+      pintarPrevia();
+    }
+    function siguiente() {
+      if (!archivos.length || fallo || borrador !== ficha0) { acabar(); return; }
+      var blob;
+      var marca;
+      prepararFoto(archivos.shift()).then(function (b) {
+        blob = b;
+        return huella(blob);
+      }).then(function (h) {
+        marca = h;
+        if (borrador !== ficha0) return null;
+        if (h && huellas[h] && borrador.fotos.indexOf(huellas[h]) !== -1) return null; // la misma foto dos veces
+        return subirFoto(blob, borrador.id);
+      }).then(function (ruta) {
+        if (!ruta) return;
+        if (borrador !== ficha0) { borrarDelBucket([ruta]); return; }
+        if (marca) huellas[marca] = ruta;
+        borrador.fotos.push(ruta);
+        if (esNuevo) { blobsNuevo[ruta] = blob; hechas++; return; }
+        return guardarEdicion().then(function (r) {
+          if (r.ok) { hechas++; return; }
+          // No se ha podido guardar en el producto: la foto no se queda
+          var i = borrador.fotos.indexOf(ruta);
+          if (i !== -1) borrador.fotos.splice(i, 1);
+          if (!enUso(ruta)) borrarDelBucket([ruta]);
+          fallo = r.errores ? 'Corrige lo marcado en rojo para guardar la foto.' : $('ficha-error').textContent || 'No se ha podido guardar la foto.';
+        });
+      }).then(siguiente, function (err) {
+        fallo = textoFalloFoto(err);
         siguiente();
       });
-    };
+    }
     siguiente();
   }
   $('foto-camara').addEventListener('change', alElegirFoto);
@@ -825,15 +1170,17 @@
   $('f-portada').addEventListener('change', function () {
     if (!borrador || esNuevo) return;
     var id = borrador.id;
+    var nombre = borrador.nombre;
     var si = $('f-portada').checked;
-    var r = aplicar(function (c) {
+    guardarAjustes(function (c) {
       if (!enCopia(c, id)) return false;
       if (si) c.portada.destacado = id;
       else if (c.portada.destacado === id) c.portada.destacado = '';
+    }).then(function (r) {
+      if (r.ok) avisar(si ? 'En la portada: ' + nombre : 'Quitado de la portada');
+      if (borrador && borrador.id === id) $('f-portada').checked = contenido.portada.destacado === id;
+      pintarPortadaPanel();
     });
-    if (r.ok) avisar(si ? 'En la portada: ' + borrador.nombre : 'Quitado de la portada');
-    else $('f-portada').checked = !si;
-    pintarPortadaPanel();
   });
   $('fotos-lista').addEventListener('click', function (e) {
     var b = e.target.closest('[data-accion]');
@@ -850,8 +1197,10 @@
     } else {
       borrador.fotos.splice(i, 1);
       $('foto-estado').textContent = '';
+      // Primero se guarda el producto sin ella; el archivo se borra del bucket pasado el «Deshacer»
       guardarEdicion();
       pintarFotos({ i: Math.min(i, borrador.fotos.length - 1), accion: 'quitar' });
+      borrarLuego(foto);
       deshacerQuitarFoto(borrador.id, esNuevo, foto, i);
     }
     pintarPrevia();
@@ -865,18 +1214,22 @@
         hacer: function () {
           if (borrador && borrador.id === id) {
             if (borrador.fotos.length >= C.LIMITES.fotos || borrador.fotos.indexOf(foto) !== -1) return;
+            noBorrar(foto);
             borrador.fotos.splice(Math.min(i, borrador.fotos.length), 0, foto);
             guardarEdicion();
             pintarFotos();
             pintarPrevia();
             avisar('Foto recuperada');
           } else if (!eraNuevo) {
-            var r = aplicar(function (c) {
-              var x = enCopia(c, id);
-              if (!x || x.fotos.length >= C.LIMITES.fotos || x.fotos.indexOf(foto) !== -1) return false;
-              x.fotos.splice(Math.min(i, x.fotos.length), 0, foto);
+            var x = buscar(id);
+            if (!x || x.fotos.length >= C.LIMITES.fotos || x.fotos.indexOf(foto) !== -1) return;
+            noBorrar(foto);
+            var fotos = x.fotos.slice();
+            fotos.splice(Math.min(i, fotos.length), 0, foto);
+            guardarCampos(id, { fotos: fotos }).then(function (r) {
+              if (r.ok) { avisar('Foto recuperada'); pintarLista(); }
+              else borrarLuego(foto);
             });
-            if (r.ok) { avisar('Foto recuperada'); pintarLista(); }
           }
         }
       }
@@ -893,16 +1246,29 @@
 
   // ---------- Guardado automático de los formularios ----------
 
+  // pendientesForm: cuántos campos esperan su guardado (mientras tanto, lo que llega del servidor
+  // no repinta los formularios, para no borrar lo recién escrito)
+  var pendientesForm = 0;
+  var diferidos = [];  // para guardarlos ya (al cerrar sesión)
   function conRetraso(fn, ms) {
-    var t;
+    var t = null;
+    function ya() {
+      if (t === null) return;
+      clearTimeout(t);
+      t = null;
+      pendientesForm--;
+      fn();
+    }
+    diferidos.push(ya);
     return function () {
+      if (t === null) pendientesForm++;
       clearTimeout(t);
       $('guardado').textContent = 'Guardando…';
       $('guardado').dataset.estado = 'pendiente';
-      t = setTimeout(fn, ms || 600);
+      t = setTimeout(ya, ms || 600);
     };
   }
-  function guardadoForm(r) { if (r && r.ok) avisar('Guardado'); }
+  function guardadoForm(promesa) { return promesa.then(function (r) { if (r.ok) avisar('Guardado'); return r; }); }
 
   // Corta un texto a N líneas en el propio campo y lo dice junto al campo
   function limitarLineas(campo, max, idError) {
@@ -943,19 +1309,21 @@
       $('aviso-texto').focus();
       return;
     }
-    var r = aplicar(function (c) { c.tienda.aviso = { activo: activo, texto: texto }; });
-    if (r.ok) avisar(activo ? 'Aviso puesto en la web' : 'Aviso quitado de la web');
-    pintarAviso();
+    guardarAjustes(function (c) { c.tienda.aviso = { activo: activo, texto: texto }; }).then(function (r) {
+      if (r.ok) avisar(activo ? 'Aviso puesto en la web' : 'Aviso quitado de la web');
+      pintarAviso(true);
+    });
   });
   var guardarAviso = conRetraso(function () {
     var texto = $('aviso-texto').value.trim();
     var apagado = false;
-    var r = aplicar(function (c) {
+    guardarAjustes(function (c) {
       c.tienda.aviso.texto = texto;
       if (!texto && c.tienda.aviso.activo) { c.tienda.aviso.activo = false; apagado = true; }
+    }).then(function (r) {
+      if (r.ok) avisar(apagado ? 'Aviso quitado: se ha quedado sin texto' : 'Guardado');
+      pintarAviso('nunca');
     });
-    if (r.ok) avisar(apagado ? 'Aviso quitado: se ha quedado sin texto' : 'Guardado');
-    pintarAviso('nunca');
   });
   $('aviso-texto').addEventListener('input', function () {
     if ($('aviso-texto').value.trim()) errorCampo('aviso-texto', '');
@@ -1099,7 +1467,8 @@
 
   function pintarHorario(respetarFoco) {
     var ol = $('tramos');
-    if (respetarFoco && ol.contains(document.activeElement)) return;
+    // Se respeta lo que se está escribiendo y un horario a medias (con un error, aún sin guardar)
+    if (respetarFoco && (ol.contains(document.activeElement) || ol.querySelector('.tramo__error:not(:empty)'))) return;
     ol.textContent = '';
     contenido.tienda.horario.forEach(function (t) { ol.appendChild(crearTramo(t)); });
     pintarPreviaHorario(contenido.tienda.horario);
@@ -1109,7 +1478,7 @@
     var r = leerTramos();
     pintarPreviaHorario(r.tramos);
     if (r.hayError) { avisarGuardado(false, 'Falta corregir el horario'); return; }
-    guardadoForm(aplicar(function (c) { c.tienda.horario = r.tramos; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.horario = r.tramos; }));
   });
   $('tramos').addEventListener('input', function () { pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
   $('tramos').addEventListener('change', function () { pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
@@ -1119,7 +1488,7 @@
     b.closest('.tramo').remove();
     var r = leerTramos();
     pintarPreviaHorario(r.tramos);
-    if (!r.hayError && aplicar(function (c) { c.tienda.horario = r.tramos; }).ok) avisar('Horario quitado');
+    if (!r.hayError) guardarAjustes(function (c) { c.tienda.horario = r.tramos; }).then(function (x) { if (x.ok) avisar('Horario quitado'); });
     $('anadir-tramo').focus();
   });
   $('anadir-tramo').addEventListener('click', function () {
@@ -1150,11 +1519,11 @@
   var guardarTitular = conRetraso(function () {
     var titular = $('titular').value.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
       .filter(Boolean).slice(0, C.LIMITES.lineasTitular).join('\n');
-    guardadoForm(aplicar(function (c) { c.portada.titular = titular; }));
+    guardadoForm(guardarAjustes(function (c) { c.portada.titular = titular; }));
   });
   var guardarEntradilla = conRetraso(function () {
     var entradilla = $('entradilla').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(aplicar(function (c) { c.portada.entradilla = entradilla; }));
+    guardadoForm(guardarAjustes(function (c) { c.portada.entradilla = entradilla; }));
   });
   $('titular').addEventListener('input', function () {
     limitarLineas($('titular'), C.LIMITES.lineasTitular, 'titular');
@@ -1195,6 +1564,7 @@
           var img = el('img');
           img.src = srcFoto(f);
           img.alt = '';
+          E.siFalla(img, function (i) { if (i.parentNode) i.parentNode.replaceChild(el('span', 'item__sin-foto', 'Sin foto'), i); });
           mini.appendChild(img);
         } else {
           mini.appendChild(el('span', 'item__sin-foto', 'Sin foto'));
@@ -1209,18 +1579,33 @@
       caja.appendChild(label);
       if (conFoco !== null && conFoco === p.id) r.focus();
     });
+    $('tienda-foto-img').hidden = false;
     $('tienda-foto-img').src = srcFoto(contenido.portada.foto);
     window.Escaparate.pintarPortada(contenido, $('portada-previa'));
   }
 
+  // Fotos grandes del panel que no cargan (p. ej. borradas del bucket): la de la tienda vuelve a la de
+  // siempre; la de la ficha se esconde y se ve el cuadro de «Toca para hacer una foto»
+  $('tienda-foto-img').addEventListener('error', function () {
+    var deSiempre = srcFoto('img/tienda-sofa-blanco.jpg');
+    var img = $('tienda-foto-img');
+    if (img.getAttribute('src') !== deSiempre) img.src = deSiempre;
+    else img.hidden = true;
+  });
+  $('foto-img').addEventListener('error', function () {
+    $('foto-img').hidden = true;
+    $('foto-vacia').hidden = false;
+  });
+
   function destacar(id) {
-    var r = aplicar(function (c) { c.portada.destacado = id; });
-    if (r.ok) {
-      var p = buscar(id);
-      avisar(p ? 'En la portada: ' + p.nombre : 'Portada sin producto destacado');
-    }
-    pintarPortadaPanel();
-    return r;
+    return guardarAjustes(function (c) { c.portada.destacado = id; }).then(function (r) {
+      if (r.ok) {
+        var p = buscar(id);
+        avisar(p ? 'En la portada: ' + p.nombre : 'Portada sin producto destacado');
+      }
+      pintarPortadaPanel();
+      return r;
+    });
   }
 
   $('destacados').addEventListener('change', function (e) {
@@ -1231,13 +1616,22 @@
     var archivo = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!archivo) return;
-    $('tienda-foto-estado').textContent = 'Preparando la foto…';
-    prepararFoto(archivo).then(function (datos) {
-      var r = aplicar(function (c) { c.portada.foto = datos; });
-      $('tienda-foto-estado').textContent = r.ok ? 'Foto lista ✓' : r.motivo === 'cuota' ? MENSAJE_CUOTA : MENSAJE_ERROR;
-      pintarPortadaPanel();
-    }, function () {
-      $('tienda-foto-estado').textContent = 'No se ha podido abrir esa foto. Prueba con otra o hazla de nuevo.';
+    $('tienda-foto-estado').textContent = 'Subiendo la foto…';
+    // Se sube a portada/{uuid}.jpg, se guarda en los ajustes y, si ha ido bien, se borra la de antes
+    var antes = contenido.portada.foto;
+    prepararFoto(archivo).then(function (blob) { return subirFoto(blob, ''); }).then(function (ruta) {
+      return guardarAjustes(function (c) { c.portada.foto = ruta; }).then(function (r) {
+        if (r.ok) {
+          $('tienda-foto-estado').textContent = 'Foto lista ✓';
+          if (antes !== ruta && !enUso(antes)) borrarDelBucket([antes]);
+        } else {
+          $('tienda-foto-estado').textContent = 'No se ha guardado la foto. Vuelve a intentarlo.';
+          if (!enUso(ruta)) borrarDelBucket([ruta]);
+        }
+        pintarPortadaPanel();
+      });
+    }).catch(function (err) {
+      $('tienda-foto-estado').textContent = textoFalloFoto(err);
     });
   }
   $('tienda-foto-camara').addEventListener('change', alElegirFotoTienda);
@@ -1268,17 +1662,17 @@
   var guardarTelefono = conRetraso(function () {
     var tel = validarTelefono();
     if (tel === null) { avisarGuardado(false, 'Falta corregir el teléfono'); return; }
-    guardadoForm(aplicar(function (c) { c.tienda.telefono = tel; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.telefono = tel; }));
   });
   var guardarWhatsapp = conRetraso(function () {
     var wa = validarWhatsapp();
     if (wa === null) { avisarGuardado(false, 'Falta corregir el WhatsApp'); return; }
-    guardadoForm(aplicar(function (c) { c.tienda.whatsapp = wa; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.whatsapp = wa; }));
   });
   var guardarDireccion = conRetraso(function () {
     var direccion = $('direccion').value.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
       .filter(Boolean).slice(0, C.LIMITES.lineasDireccion).join('\n');
-    guardadoForm(aplicar(function (c) { c.tienda.direccion = direccion; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.direccion = direccion; }));
   });
   $('telefono').addEventListener('input', guardarTelefono);
   $('whatsapp').addEventListener('input', guardarWhatsapp);
@@ -1289,7 +1683,7 @@
   // Zona de entrega (opcional): vacía, la web dice «consulta zona»
   var guardarZona = conRetraso(function () {
     var zona = $('zona-entrega').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(aplicar(function (c) { c.tienda.zonaEntrega = zona; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.zonaEntrega = zona; }));
   });
   $('zona-entrega').addEventListener('input', guardarZona);
 
@@ -1376,7 +1770,7 @@
       return;
     }
     errorCampo('op-nota', '');
-    guardadoForm(aplicar(function (c) { c.opiniones.nota = n; }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.nota = n; }));
   });
   var guardarTotal = conRetraso(function () {
     var t = $('op-total').value.trim();
@@ -1386,11 +1780,11 @@
       return;
     }
     errorCampo('op-total', '');
-    guardadoForm(aplicar(function (c) { c.opiniones.total = t === '' ? null : parseInt(t, 10); }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.total = t === '' ? null : parseInt(t, 10); }));
   });
   var guardarLista = conRetraso(function () {
     var lista = leerOpiniones();
-    guardadoForm(aplicar(function (c) { c.opiniones.lista = lista; }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.lista = lista; }));
   });
   $('op-nota').addEventListener('input', guardarNota);
   $('op-total').addEventListener('input', guardarTotal);
@@ -1404,7 +1798,7 @@
     if (!b) return;
     b.closest('.opinion').remove();
     var lista = leerOpiniones();
-    if (aplicar(function (c) { c.opiniones.lista = lista; }).ok) avisar('Opinión quitada');
+    guardarAjustes(function (c) { c.opiniones.lista = lista; }).then(function (r) { if (r.ok) avisar('Opinión quitada'); });
     $('op-anadir').focus();
   });
   $('op-anadir').addEventListener('click', function () {
@@ -1419,12 +1813,14 @@
 
   $('fin-activa').addEventListener('change', function () {
     var activa = $('fin-activa').checked;
-    var r = aplicar(function (c) { c.financiacion.activa = activa; });
-    if (r.ok) avisar(activa ? 'Financiación: ahora sale en la web' : 'Financiación: ya no sale en la web');
+    guardarAjustes(function (c) { c.financiacion.activa = activa; }).then(function (r) {
+      if (r.ok) avisar(activa ? 'Financiación: ahora sale en la web' : 'Financiación: ya no sale en la web');
+      else $('fin-activa').checked = contenido.financiacion.activa;
+    });
   });
   var guardarFinTexto = conRetraso(function () {
     var texto = $('fin-texto').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(aplicar(function (c) { c.financiacion.texto = texto; }));
+    guardadoForm(guardarAjustes(function (c) { c.financiacion.texto = texto; }));
   });
   $('fin-texto').addEventListener('input', guardarFinTexto);
 
@@ -1437,13 +1833,16 @@
     else if (contenido.marcas.length >= C.LIMITES.marcas) error = 'Como mucho ' + C.LIMITES.marcas + ' marcas.';
     errorCampo('marca-nueva', error);
     if (error) { campo.focus(); return; }
-    var r = aplicar(function (c) { c.marcas.push(m); });
-    if (r.ok) {
+    guardarAjustes(function (c) {
+      if (c.marcas.some(function (x) { return x.toLowerCase() === m.toLowerCase(); })) return;
+      c.marcas.push(m);
+    }).then(function (r) {
+      if (!r.ok) return;
       campo.value = '';
       pintarMarcasPanel();
       avisar('Marca añadida: ' + m);
       campo.focus();
-    }
+    });
   }
   $('marca-anadir').addEventListener('click', anadirMarca);
   $('marca-nueva').addEventListener('keydown', function (e) {
@@ -1454,8 +1853,9 @@
     var b = e.target.closest('[data-marca]');
     if (!b) return;
     var m = b.dataset.marca;
-    var r = aplicar(function (c) { c.marcas = c.marcas.filter(function (x) { return x !== m; }); });
-    if (r.ok) { pintarMarcasPanel(); avisar('Marca quitada: ' + m); $('marca-nueva').focus(); }
+    guardarAjustes(function (c) { c.marcas = c.marcas.filter(function (x) { return x !== m; }); }).then(function (r) {
+      if (r.ok) { pintarMarcasPanel(); avisar('Marca quitada: ' + m); $('marca-nueva').focus(); }
+    });
   });
 
   var guardarDesde = conRetraso(function () {
@@ -1466,7 +1866,7 @@
       return;
     }
     errorCampo('desde', '');
-    guardadoForm(aplicar(function (c) { c.desde = t; }));
+    guardadoForm(guardarAjustes(function (c) { c.desde = t; }));
   });
   $('desde').addEventListener('input', guardarDesde);
 
@@ -1494,45 +1894,326 @@
     pintarConfianza(respetarFoco);
   }
 
-  $('restaurar').addEventListener('click', function () {
-    confirmar({
-      texto: '¿Volver al ejemplo?', detalle: 'Se borran tus productos, el horario y los textos que hayas cambiado en este navegador.',
-      si: 'Sí, restaurar', no: 'No, volver', peligro: true
-    }).then(function (si) {
-      if (!si) return;
-      contenido = window.restaurarEjemplo();
-      vista = 'web';
-      pintarLista();
-      pintarFormularios();
-      avisarGuardado(true, 'Ejemplo restaurado ✓');
-      avisar('Ejemplo restaurado');
+  // ---------- Lo que cambia otra persona: se trae del servidor ----------
+
+  // Repinta tras recargar. conFicha: trae también a la ficha abierta lo de su producto (tras un conflicto)
+  function trasRecargar(conFicha) {
+    pintarLista();
+    if (!pendientesForm) pintarFormularios(true);
+    else pintarPortadaPanel();
+    if (conFicha) refrescarFicha();
+    else if (ficha.open) pintarPrevia();
+  }
+
+  // Recarga todo lo que no se está editando: el producto de la ficha abierta se queda como está
+  // (si otra persona lo ha cambiado, su siguiente guardado lo detecta, lo recarga y lo avisa)
+  var recargaEnCurso = null;
+  var ultimaRecarga = 0;
+  function recargarDelServidor() {
+    if (!listo) return Promise.resolve();
+    if (recargaEnCurso) return recargaEnCurso;
+    recargaEnCurso = enCola(function () {
+      return S.conSesion(function (tk) { return D.leerTodo(tk); }).then(function (r) {
+        ultimaRecarga = Date.now();
+        var abierto = ficha.open && borrador && !esNuevo ? borrador.id : null;
+        var lista = r.contenido.productos;
+        if (abierto) {
+          var mio = buscar(abierto);
+          var i = -1;
+          lista.forEach(function (p, n) { if (p.id === abierto) i = n; });
+          if (mio && i !== -1) lista[i] = mio;
+          else if (mio) lista.push(mio);
+          if (mio) r.meta.productos[abierto] = meta.productos[abierto];
+        }
+        var antes = JSON.stringify(contenido);
+        var c = r.contenido;
+        c.productos = lista;
+        contenido = C.normalizar(c);
+        meta = r.meta;
+        guardarCache();
+        if (JSON.stringify(contenido) !== antes) trasRecargar(false);
+      }, function () { /* sin conexión: se sigue con lo que hay */ });
+    }).then(function () { recargaEnCurso = null; });
+    return recargaEnCurso;
+  }
+
+  // Cada minuto (si se ve la pestaña) y al volver a ella
+  setInterval(function () {
+    if (document.visibilityState === 'visible') recargarDelServidor();
+  }, 60000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && Date.now() - ultimaRecarga > 5000) recargarDelServidor();
+  });
+  // Otra pestaña de este navegador ha guardado (ha cambiado la caché): se trae lo del servidor
+  var relojOtraPestana;
+  window.addEventListener('storage', function (e) {
+    if (e.key !== C.CLAVE && e.key !== null) return;
+    clearTimeout(relojOtraPestana);
+    relojOtraPestana = setTimeout(recargarDelServidor, 400);
+  });
+
+  // ---------- Entrar, comprobar que es editor, cargar ----------
+
+  var acceso = $('acceso');
+  var resolverAcceso = null;
+  var esperaAcceso = null;
+  var cargandoPanel = false;
+
+  function estadoPanel(estado, texto) {
+    document.body.dataset.sesion = estado;
+    var caja = $('carga');
+    caja.hidden = estado === 'si' || estado === 'no';
+    $('carga-texto').textContent = texto || (estado === 'cargando' ? 'Cargando los productos…' : '');
+    $('carga-reintentar').hidden = estado !== 'error';
+  }
+
+  function pintarSesion() {
+    var s = S.actual();
+    $('sesion-quien').textContent = s && s.usuario.email ? 'Has entrado como ' + s.usuario.email : '';
+  }
+
+  // modo: 'inicio' | 'caducada' | 'salida' (entrar) · 'olvido' (pedir el enlace) · 'nueva' (contraseña nueva)
+  var TEXTOS_ACCESO = {
+    inicio: ['Entrar al panel', 'Con el correo y la contraseña de la tienda.'],
+    caducada: ['La sesión ha caducado', 'Vuelve a entrar para seguir: lo que estabas haciendo se guarda al entrar.'],
+    salida: ['Se ha cerrado la sesión', 'Se ha cerrado en otra pestaña. Vuelve a entrar para seguir.'],
+    olvido: ['Contraseña olvidada', 'Escribe el correo de la cuenta y te enviaremos un enlace para poner una contraseña nueva.'],
+    nueva: ['Contraseña nueva', 'Elige la contraseña con la que entrarás a partir de ahora.']
+  };
+  var modoAcceso = 'inicio';
+  function mostrarAcceso(modo, error) {
+    var entrarModo = modo === 'inicio' || modo === 'caducada' || modo === 'salida';
+    if (entrarModo) modoAcceso = modo;
+    $('acceso-titulo').textContent = TEXTOS_ACCESO[modo][0];
+    $('acceso-ayuda').textContent = TEXTOS_ACCESO[modo][1];
+    $('acceso-form').hidden = !entrarModo;
+    $('olvido-form').hidden = modo !== 'olvido';
+    $('nueva-form').hidden = modo !== 'nueva';
+    $('acceso-error').textContent = entrarModo ? error || '' : '';
+    $('olvido-error').textContent = modo === 'olvido' ? error || '' : '';
+    $('olvido-hecho').textContent = '';
+    $('nueva-error').textContent = modo === 'nueva' ? error || '' : '';
+    $('acceso-clave').value = '';
+    $('acceso-volver').hidden = modo !== 'inicio';
+    if (!acceso.open) acceso.showModal();
+    if (modo === 'olvido') {
+      $('olvido-correo').value = $('acceso-correo').value;
+      $('olvido-correo').focus();
+    } else if (modo === 'nueva') {
+      $('nueva-clave').value = '';
+      $('nueva-clave2').value = '';
+      $('nueva-clave').focus();
+    } else {
+      ($('acceso-correo').value ? $('acceso-clave') : $('acceso-correo')).focus();
+    }
+  }
+
+  // ¿Has olvidado la contraseña? → se pide el enlace. La respuesta es la misma exista o no el correo
+  $('acceso-olvido').addEventListener('click', function () { mostrarAcceso('olvido'); });
+  $('olvido-volver').addEventListener('click', function () { mostrarAcceso(modoAcceso); });
+  $('olvido-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var correo = $('olvido-correo').value.trim();
+    var boton = $('olvido-enviar');
+    $('olvido-hecho').textContent = '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+      $('olvido-error').textContent = 'Escribe el correo completo, por ejemplo nombre@gmail.com.';
+      $('olvido-correo').focus();
+      return;
+    }
+    if (boton.disabled) return;
+    boton.disabled = true;
+    $('olvido-error').textContent = '';
+    var volverA = window.location.origin + window.location.pathname;
+    S.pedirRecuperacion(correo, volverA).then(function () { return null; }, function (err) {
+      return err.tipo === 'red' || err.tipo === 'tiempo' || err.estado === 429 ? err : null;
+    }).then(function (err) {
+      boton.disabled = false;
+      if (!err) {
+        $('olvido-hecho').textContent = 'Si el correo existe, te llegará un enlace. Ábrelo en este mismo móvil u ordenador (mira también en «correo no deseado»).';
+        $('acceso-correo').value = correo;
+      } else {
+        $('olvido-error').textContent = err.tipo === 'red' ? 'Sin conexión. Revisa internet y vuelve a intentarlo.'
+          : err.tipo === 'tiempo' ? 'El servidor no contesta. Vuelve a intentarlo en un momento.'
+          : 'Has pedido varios enlaces seguidos. Espera unos minutos y vuelve a probar.';
+      }
     });
   });
 
-  // Cambios hechos en otra pestaña: se traen, sin tocar lo que se está escribiendo ni la ficha abierta
-  window.addEventListener('storage', function (e) {
-    if (e.key !== C.CLAVE && e.key !== null) return;
-    contenido = window.cargarContenido();
-    pintarLista();
-    pintarFormularios(true);
-    var fotosCambiadas = false;
-    if (ficha.open && !esNuevo && borrador) {
-      if (document.activeElement !== $('f-portada')) $('f-portada').checked = contenido.portada.destacado === borrador.id;
-      // Si otra pestaña ha cambiado las fotos de este producto, se traen a la ficha abierta
-      var x = buscar(borrador.id);
-      if (x && JSON.stringify(x.fotos) !== JSON.stringify(alAbrir.fotos)) {
-        borrador.fotos = copiar(x.fotos);
-        alAbrir.fotos = copiar(x.fotos);
-        pintarFotos();
-        fotosCambiadas = true;
-      }
+  // Contraseña nueva (tras el enlace del correo): dos veces, mínimo 8; luego se entra
+  $('nueva-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var a = $('nueva-clave').value;
+    var b2 = $('nueva-clave2').value;
+    var boton = $('nueva-guardar');
+    var corta = Array.from(a).length < 8;
+    var error = corta ? 'Tiene que tener al menos 8 caracteres.' : a !== b2 ? 'Las dos contraseñas no coinciden.' : '';
+    $('nueva-error').textContent = error;
+    if (error) { $(corta ? 'nueva-clave' : 'nueva-clave2').focus(); return; }
+    if (boton.disabled) return;
+    boton.disabled = true;
+    S.cambiarClave(a).then(function () {
+      var s = S.actual();
+      return S.token().then(function (tk) { return D.esEditor(tk, s.usuario.id); });
+    }).then(function (es) {
+      boton.disabled = false;
+      $('nueva-clave').value = '';
+      $('nueva-clave2').value = '';
+      if (es) { trasEntrar(); avisar('Contraseña cambiada'); return; }
+      return S.salir().then(function () { mostrarAcceso('inicio', 'Contraseña cambiada, pero esta cuenta no tiene permiso para editar.'); });
+    }).catch(function (err) {
+      boton.disabled = false;
+      var c = err && err.codigo;
+      $('nueva-error').textContent = c === 'same_password' ? 'Tiene que ser distinta de la que tenías.'
+        : c === 'weak_password' ? 'Esa contraseña es demasiado fácil. Usa al menos 8 caracteres, mezclando letras y números.'
+        : err.tipo === 'red' ? 'Sin conexión. Revisa internet y vuelve a intentarlo.'
+        : err.tipo === 'sesion' ? 'El enlace ha caducado. Pide otro con «¿Has olvidado la contraseña?».'
+        : err.mensaje || D.MENSAJES.servidor;
+    });
+  });
+  acceso.addEventListener('cancel', function (e) { e.preventDefault(); });
+
+  // Lo llama datos.js cuando la sesión ya no vale: se pide entrar y se sigue al volver
+  S.alCaducar = function () {
+    if (!esperaAcceso) {
+      esperaAcceso = new Promise(function (resolver) { resolverAcceso = resolver; });
+      mostrarAcceso(listo ? 'caducada' : 'inicio');
     }
-    if (ficha.open) pintarPrevia();
-    avisar(fotosCambiadas ? 'Se han cambiado las fotos en otra pestaña'
-      : ficha.open ? 'Se han hecho cambios en otra pestaña. La ficha abierta sigue con lo tuyo.'
-      : 'Se han hecho cambios en otra pestaña: ya los ves aquí.');
+    return esperaAcceso;
+  };
+
+  function trasEntrar() {
+    if (acceso.open) acceso.close();
+    $('acceso-clave').value = '';
+    pintarSesion();
+    if (resolverAcceso) {
+      var r = resolverAcceso;
+      resolverAcceso = null;
+      esperaAcceso = null;
+      r();
+      return;
+    }
+    if (!listo) cargarPanel();
+    else recargarDelServidor();
+  }
+
+  $('acceso-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var correo = $('acceso-correo').value.trim();
+    var clave = $('acceso-clave').value;
+    var boton = $('acceso-entrar');
+    if (!correo || !clave) {
+      $('acceso-error').textContent = 'Escribe el correo y la contraseña.';
+      $(correo ? 'acceso-clave' : 'acceso-correo').focus();
+      return;
+    }
+    if (boton.disabled) return;
+    boton.disabled = true;
+    boton.textContent = 'Entrando…';
+    $('acceso-error').textContent = '';
+    S.entrar(correo, clave).then(function (s) {
+      return S.token().then(function (tk) { return D.esEditor(tk, s.usuario.id); });
+    }).then(function (es) {
+      if (es) { trasEntrar(); return; }
+      return S.salir().then(function () {
+        $('acceso-error').textContent = 'Esta cuenta no tiene permiso para editar.';
+        $('acceso-clave').value = '';
+        $('acceso-correo').focus();
+      });
+    }).catch(function (err) {
+      $('acceso-error').textContent = err.tipo === 'red' ? 'Sin conexión. Revisa internet y vuelve a intentarlo.'
+        : err.tipo === 'tiempo' ? 'El servidor no contesta. Vuelve a intentarlo en un momento.'
+        : err.mensaje || D.MENSAJES.servidor;
+      $('acceso-clave').focus();
+    }).then(function () {
+      boton.disabled = false;
+      boton.textContent = 'Entrar';
+    });
   });
 
-  pintarLista();
-  pintarFormularios();
+  // Comprueba que la cuenta está en «editores» y trae todo (con los vendidos)
+  function cargarPanel() {
+    if (cargandoPanel) return;
+    cargandoPanel = true;
+    estadoPanel('cargando');
+    S.conSesion(function (tk) {
+      var s = S.actual();
+      return D.esEditor(tk, s ? s.usuario.id : '').then(function (es) { return es ? D.leerTodo(tk) : null; });
+    }).then(function (r) {
+      cargandoPanel = false;
+      if (!r) {
+        estadoPanel('no');
+        S.salir().then(function () { mostrarAcceso('inicio', 'Esta cuenta no tiene permiso para editar.'); });
+        return;
+      }
+      contenido = r.contenido;
+      meta = r.meta;
+      ultimaRecarga = Date.now();
+      listo = true;
+      guardarCache();
+      estadoPanel('si');
+      pintarSesion();
+      pintarLista();
+      pintarFormularios();
+    }, function (e) {
+      cargandoPanel = false;
+      estadoPanel('error', e.tipo === 'red' ? 'Sin conexión: no se han podido cargar los productos. Revisa internet.'
+        : e.tipo === 'tiempo' ? 'El servidor no contesta. Vuelve a intentarlo en un momento.'
+        : e.tipo === 'permiso' ? 'Esta cuenta no tiene permiso para editar.'
+        : 'No se han podido cargar los productos. Vuelve a intentarlo.');
+    });
+  }
+  $('carga-reintentar').addEventListener('click', cargarPanel);
+
+  // «Cerrar sesión»: se cierra esta sesión (la del móvil o la de otro dispositivo siguen) y se vuelve a la entrada
+  // Antes se guarda ya todo lo pendiente (campos a medio guardar y la ficha abierta) y se espera a que
+  // acabe; si algo no se ha podido guardar, se avisa y NO se cierra la sesión
+  $('salir').addEventListener('click', function () {
+    if (ficha.open && esNuevo && tieneAlgo()) {
+      avisar('Termina de añadir el producto nuevo (o descártalo) antes de cerrar sesión.', { error: true });
+      return;
+    }
+    $('salir').disabled = true;
+    var antes = fallos;
+    diferidos.forEach(function (ya) { ya(); });
+    var ficheo = ficha.open && !esNuevo ? guardarEdicion() : Promise.resolve({ ok: true });
+    ficheo.then(function (r) {
+      return enCola(function () {}).then(function () { return r; });
+    }).then(function (r) {
+      if (fallos > antes || (r && r.ok === false) || pendientesForm > 0 || document.querySelector('main [aria-invalid="true"], main .tramo__error:not(:empty)')) {
+        $('salir').disabled = false;
+        avisar('No se ha podido guardar todo: revisa el aviso o lo marcado en rojo antes de cerrar sesión.', { error: true });
+        return;
+      }
+      return enCola(function () { return S.salir(); }).then(function () { window.location.reload(); });
+    });
+  });
+
+  // Vuelve la conexión: se trae lo que haya cambiado (sin tocar lo que se está editando)
+  window.addEventListener('online', function () { recargarDelServidor(); });
+
+  // Otra pestaña de este navegador ha entrado, salido o la sesión ha caducado
+  S.alCambiar(function (que) {
+    if (que === 'salida' && listo) mostrarAcceso('salida');
+    else if (que === 'salida' && !acceso.open) { estadoPanel('no'); mostrarAcceso('inicio'); }
+    else if (que === 'caducada' && listo) S.alCaducar();
+    else if (que === 'entrada' && acceso.open) {
+      var s = S.actual();
+      S.token().then(function (tk) { return D.esEditor(tk, s.usuario.id); }).then(function (es) { if (es) trasEntrar(); }, function () {});
+    }
+  });
+
+  // Arranque: si se vuelve del enlace del correo (contraseña olvidada), se pide la contraseña nueva
+  var vuelta = S.vueltaCorreo();
+  if (vuelta && vuelta.tipo === 'recuperacion') {
+    estadoPanel('no');
+    S.entrarConRecuperacion().then(function () { mostrarAcceso('nueva'); }, function (err) {
+      mostrarAcceso('inicio', err.tipo === 'red' ? 'Sin conexión. Revisa internet y vuelve a abrir el enlace.'
+        : 'El enlace ha caducado o ya se ha usado. Pide otro con «¿Has olvidado la contraseña?».');
+    });
+  } else if (vuelta && vuelta.tipo === 'error') {
+    estadoPanel('no');
+    mostrarAcceso('inicio', 'El enlace ha caducado o ya se ha usado. Pide otro con «¿Has olvidado la contraseña?».');
+  } else if (S.actual()) cargarPanel();
+  else { estadoPanel('no'); mostrarAcceso('inicio'); }
 })();
