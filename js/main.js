@@ -50,6 +50,17 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-contenido="telefono"]'), function (n) {
       n.textContent = tienda.telefono;
     });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-contenido="whatsapp"]'), function (n) {
+      n.textContent = C.whatsappLegible(tienda.whatsapp);
+    });
+    // Tarjeta de visita: si el WhatsApp es el mismo número que el teléfono, una sola fila
+    var mismo = C.soloDigitos(tienda.whatsapp).slice(-9) === C.soloDigitos(tienda.telefono).slice(-9);
+    var filaWa = document.getElementById('visita-fila-wa');
+    if (filaWa) {
+      filaWa.hidden = mismo;
+      document.getElementById('visita-wa-mismo').hidden = !mismo;
+      document.getElementById('visita-tel-etiqueta').textContent = mismo ? 'Teléfono y WhatsApp' : 'Teléfono';
+    }
     // El teléfono de los datos para Google (application/ld+json) también sale del contenido
     var ld = document.querySelector('script[type="application/ld+json"]');
     if (ld) {
@@ -73,12 +84,16 @@
     var caja = document.querySelector('.abierto__horario');
     if (!caja) return;
     caja.textContent = '';
-    tienda.horario.forEach(function (tramo, i) {
-      if (i > 0) caja.appendChild(document.createElement('br'));
+    tienda.horario.forEach(function (tramo) {
+      var fila = document.createElement('span');
+      fila.className = 'visita__tramo';
       var dias = document.createElement('strong');
       dias.textContent = tramo.dias;
-      caja.appendChild(dias);
-      caja.appendChild(document.createTextNode(' ' + (tramo.horas || 'Cerrado')));
+      fila.appendChild(dias);
+      var horas = document.createElement('span');
+      horas.textContent = tramo.horas || 'Cerrado';
+      fila.appendChild(horas);
+      caja.appendChild(fila);
     });
   }
 
@@ -95,6 +110,8 @@
   }
 
   function hora(m) { return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+  // «hasta las 13:30», o «hasta medianoche» si cierra a las 24:00
+  function hasta(m) { return m >= 24 * 60 ? 'hasta medianoche' : 'hasta las ' + hora(m); }
 
   // «Abierto ahora · hasta las 13:30», «Ahora cerrado · abrimos hoy a las 17:00»,
   // «Cerrado · abrimos mañana a las 10:00», «Cerrado · abrimos el lunes a las 10:00»
@@ -102,7 +119,7 @@
     var hoy = semana[ahora.dia] || [];
     for (var i = 0; i < hoy.length; i++) {
       if (ahora.minutos >= hoy[i][0] && ahora.minutos < hoy[i][1]) {
-        return { texto: 'Abierto ahora · hasta las ' + hora(hoy[i][1]), abierto: true };
+        return { texto: 'Abierto ahora · ' + hasta(hoy[i][1]), abierto: true };
       }
       if (ahora.minutos < hoy[i][0]) {
         return { texto: 'Ahora cerrado · abrimos hoy a las ' + hora(hoy[i][0]), abierto: false };
@@ -165,19 +182,157 @@
       var li = document.createElement('li');
       li.className = 'cita';
       var q = document.createElement('blockquote');
-      q.textContent = '«' + o.texto + '»';
+      q.textContent = o.texto; // la comilla la pone el CSS (una sola)
       li.appendChild(q);
+      // Autor: burbuja con la inicial, el nombre y «Opinión en Google»
+      var autor = document.createElement('div');
+      autor.className = 'cita__firma';
+      var m = /[\p{L}\p{N}]/u.exec(o.autor || '');
+      var inicial = document.createElement('span');
+      inicial.className = 'cita__inicial';
+      inicial.setAttribute('aria-hidden', 'true');
+      inicial.textContent = m ? m[0].toLocaleUpperCase('es') : 'G';
+      autor.appendChild(inicial);
+      var datos = document.createElement('span');
+      datos.className = 'cita__datos';
       if (o.autor) {
-        var autor = document.createElement('p');
-        autor.className = 'cita__autor';
-        autor.textContent = o.autor;
-        li.appendChild(autor);
+        var nombre = document.createElement('span');
+        nombre.className = 'cita__nombre';
+        nombre.textContent = o.autor;
+        datos.appendChild(nombre);
       }
+      var fuente = document.createElement('span');
+      fuente.className = 'cita__fuente';
+      fuente.textContent = 'Opinión en Google';
+      datos.appendChild(fuente);
+      autor.appendChild(datos);
+      li.appendChild(autor);
       ul.appendChild(li);
     });
     ul.hidden = op.lista.length === 0;
+    carruselCitas.montar();
     seccion.hidden = !hayNota && op.lista.length === 0 && !seccion.querySelector('#marcas:not([hidden])');
   }
+
+  // Carrusel de opiniones: 1 a la vez en el móvil y 2 desde 640 px; gira sola cada 6 s (salvo con «reducir
+  // movimiento») y se para con el ratón encima, con el foco dentro, con la pestaña oculta o con la pausa
+  // (WCAG 2.2.2). Flechas, puntos y deslizar con el dedo. Si caben todas, no hay carrusel.
+  var carruselCitas = (function () {
+    var caja, ul, controles, puntos, pausa, ant, sig;
+    // actual: la primera opinión a la vista; posiciones: cuántos «saltos» hay (n − las que caben + 1)
+    var actual = 0, n = 0, visibles = 1, posiciones = 1;
+    var temporizador = null, pausadoBoton = false, encima = false, conFoco = false, mirando = null;
+    var reducir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var listo = false;
+
+    function diapositivas() { return Array.prototype.slice.call(ul.children); }
+    function ir(i, aMano) {
+      if (posiciones < 2) return;
+      actual = (i + posiciones) % posiciones;
+      // Al moverse a mano se anuncia; girando sola, no
+      ul.setAttribute('aria-live', aMano ? 'polite' : 'off');
+      ul.scrollTo({ left: diapositivas()[actual].offsetLeft, behavior: reducir ? 'auto' : 'smooth' });
+      marcar();
+    }
+    function marcar() {
+      Array.prototype.forEach.call(puntos.children, function (b, i) {
+        if (i === actual) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      });
+      diapositivas().forEach(function (li, i) {
+        li.setAttribute('aria-hidden', i >= actual && i < actual + visibles ? 'false' : 'true');
+      });
+    }
+    function gira() { return posiciones > 1 && !reducir && !pausadoBoton && !encima && !conFoco && !document.hidden; }
+    function programar() {
+      clearInterval(temporizador);
+      temporizador = null;
+      if (gira()) temporizador = setInterval(function () { ir(actual + 1, false); }, 6000);
+    }
+    function pintarPausa() {
+      pausa.hidden = reducir || posiciones < 2;
+      pausa.setAttribute('aria-pressed', pausadoBoton ? 'true' : 'false');
+      pausa.setAttribute('aria-label', pausadoBoton ? 'Seguir pasando las opiniones' : 'Pausar las opiniones');
+    }
+    // Cuántas caben a la vez (lo decide el CSS: 1 en el móvil, 2 desde 640 px) y, con eso, puntos y flechas
+    function medir() {
+      var li = ul.children[0];
+      visibles = li ? Math.max(1, Math.round((ul.clientWidth + 16) / (li.offsetWidth + 16))) : 1;
+      posiciones = Math.max(1, n - visibles + 1);
+      var es = posiciones > 1;
+      controles.hidden = !es;
+      ant.hidden = !es;
+      sig.hidden = !es;
+      puntos.textContent = '';
+      for (var i = 0; es && i < posiciones; i++) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'citas-carrusel__punto';
+        b.dataset.i = i;
+        b.setAttribute('aria-label', visibles > 1 ? 'Ver desde la opinión ' + (i + 1) : 'Ver la opinión ' + (i + 1));
+        puntos.appendChild(b);
+      }
+      if (actual >= posiciones) actual = 0;
+      ul.scrollLeft = ul.children[actual] ? ul.children[actual].offsetLeft : 0;
+      if (es) { marcar(); ul.setAttribute('aria-live', 'off'); }
+      else { ul.removeAttribute('aria-live'); diapositivas().forEach(function (x) { x.removeAttribute('aria-hidden'); }); }
+      pintarPausa();
+      programar();
+    }
+    function iniciar() {
+      caja = document.getElementById('citas-carrusel');
+      ul = document.getElementById('citas');
+      if (!caja || !ul) return false;
+      controles = document.getElementById('citas-controles');
+      puntos = document.getElementById('citas-puntos');
+      pausa = document.getElementById('citas-pausa');
+      ant = document.getElementById('citas-ant');
+      sig = document.getElementById('citas-sig');
+      ant.addEventListener('click', function () { ir(actual - 1, true); });
+      sig.addEventListener('click', function () { ir(actual + 1, true); });
+      pausa.addEventListener('click', function () { pausadoBoton = !pausadoBoton; pintarPausa(); programar(); });
+      puntos.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-i]');
+        if (b) ir(parseInt(b.dataset.i, 10), true);
+      });
+      caja.addEventListener('mouseenter', function () { encima = true; programar(); });
+      caja.addEventListener('mouseleave', function () { encima = false; programar(); });
+      caja.addEventListener('focusin', function () { conFoco = true; programar(); });
+      caja.addEventListener('focusout', function (e) { if (!caja.contains(e.relatedTarget)) { conFoco = false; programar(); } });
+      document.addEventListener('visibilitychange', programar);
+      var medida = null;
+      window.addEventListener('resize', function () { clearTimeout(medida); medida = setTimeout(function () { if (n) medir(); }, 150); });
+      // Al deslizar con el dedo: la que queda a la izquierda pasa a ser la actual (y se reinicia la cuenta)
+      ul.addEventListener('scroll', function () {
+        clearTimeout(mirando);
+        mirando = setTimeout(function () {
+          var lis = diapositivas();
+          var i = 0;
+          lis.forEach(function (li, k) {
+            if (Math.abs(li.offsetLeft - ul.scrollLeft) < Math.abs(lis[i].offsetLeft - ul.scrollLeft)) i = k;
+          });
+          i = Math.min(i, posiciones - 1);
+          if (i !== actual) { actual = i; marcar(); programar(); }
+        }, 120);
+      }, { passive: true });
+      return true;
+    }
+    function montar() {
+      if (!listo) listo = iniciar();
+      if (!listo) return;
+      n = ul.children.length;
+      caja.classList.toggle('es-carrusel', n > 1);
+      diapositivas().forEach(function (li, i) {
+        if (n > 1) {
+          li.setAttribute('role', 'group');
+          li.setAttribute('aria-roledescription', 'diapositiva');
+          li.setAttribute('aria-label', 'Opinión ' + (i + 1) + ' de ' + n);
+        }
+      });
+      actual = 0;
+      medir();
+    }
+    return { montar: montar };
+  })();
 
   function pintarFinanciacion(fin) {
     var chip = document.getElementById('ventaja-financiacion');
@@ -195,6 +350,9 @@
 
   // La entrega no llega a todas partes: se dice la zona, o «consulta zona» si el panel la deja vacía
   function pintarEntrega(tienda) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-contenido="zona"]'), function (n) {
+      n.textContent = tienda.zonaEntrega || 'Consulta tu zona';
+    });
     var chip = document.getElementById('ventaja-entrega');
     if (chip) {
       chip.querySelector('.ventajas__texto').textContent = tienda.zonaEntrega

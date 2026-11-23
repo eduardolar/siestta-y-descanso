@@ -7,7 +7,7 @@
 
   var C = window.Contenido;
   if (!C) return;
-  var VERSION_FOTOS = '20261123-2';
+  var VERSION_FOTOS = '20261123-10';
   var SVG = 'http://www.w3.org/2000/svg';
 
   // Iconos de los marcadores sin foto (trazos de 24×24, como los del resto de la web)
@@ -15,7 +15,9 @@
     sofas: ['M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3', 'M3 11a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v6H3Z', 'M5 17v2M19 17v2'],
     sillones: ['M7 11V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6', 'M4 11a2 2 0 0 1 3 1.7V14h10v-1.3A2 2 0 0 1 20 11v6H4Z', 'M6 17v3M18 17v3'],
     colchones: ['M3 9h18v8H3z', 'M3 13h18', 'M7 9v8M12 9v8M17 9v8'],
-    camas: ['M3 18V6', 'M3 11h7a3 3 0 0 1 3-3h5a3 3 0 0 1 3 3v7', 'M3 14h18', 'M3 18h18']
+    camas: ['M3 18V6', 'M3 11h7a3 3 0 0 1 3-3h5a3 3 0 0 1 3 3v7', 'M3 14h18', 'M3 18h18'],
+    accesorios: ['M5 6c4-1.4 10-1.4 14 0 1.4 4 1.4 8 0 12-4 1.4-10 1.4-14 0-1.4-4-1.4-8 0-12Z', 'M9 10c2 .8 4 .8 6 0'],
+    otros: ['M3 8l9-4 9 4-9 4-9-4Z', 'M3 8v8l9 4 9-4V8', 'M12 12v8']
   };
 
   function el(etiqueta, clase, texto) {
@@ -210,9 +212,12 @@
     sillones: function (p) { return p.categoria === 'sillones'; },
     colchones: function (p) { return p.categoria === 'colchones'; },
     camas: function (p) { return p.categoria === 'camas'; },
+    accesorios: function (p) { return p.categoria === 'accesorios'; },
+    otros: function (p) { return p.categoria === 'otros'; },
     ofertas: function (p) { return p.etiqueta !== ''; }
   };
-  var NOMBRE_FILTRO = { todo: 'productos', sofas: 'sofás', sillones: 'sillones', colchones: 'colchones', camas: 'camas', ofertas: 'ofertas' };
+  var NOMBRE_FILTRO = { todo: 'productos', sofas: 'sofás', sillones: 'sillones', colchones: 'colchones', camas: 'camas',
+    accesorios: 'accesorios', otros: 'otros productos', ofertas: 'ofertas' };
 
   var filtroActual = 'todo';
 
@@ -220,19 +225,31 @@
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
   }
 
-  // ---------- Carrusel «Ahora en tienda»: una fila deslizable con todos los del filtro ----------
+  // ---------- Carrusel: una fila deslizable (la de «Ahora en tienda» y la de la temporada) ----------
+
+  // Las piezas de un carrusel: la pista (ul), su caja, las flechas y la posición «1–3 de 7»
+  function piezasTienda() {
+    return {
+      lista: document.getElementById('productos'), carrusel: document.getElementById('carrusel'),
+      ant: document.getElementById('carrusel-ant'), sig: document.getElementById('carrusel-sig'),
+      pos: document.getElementById('carrusel-posicion')
+    };
+  }
 
   // Flechas (solo escritorio: el CSS las esconde en pantallas pequeñas) y la posición «1–3 de 7»
-  function actualizarCarrusel() {
-    var lista = document.getElementById('productos');
+  function actualizarCarrusel(c) {
+    c = c || piezasTienda();
+    var lista = c.lista;
     if (!lista) return;
     var tarjetas = lista.querySelectorAll('.producto');
-    var ant = document.getElementById('carrusel-ant');
-    var sig = document.getElementById('carrusel-sig');
-    var pos = document.getElementById('carrusel-posicion');
+    var ant = c.ant;
+    var sig = c.sig;
+    var pos = c.pos;
     var max = lista.scrollWidth - lista.clientWidth;
     if (ant) ant.hidden = lista.scrollLeft <= 2;
     if (sig) sig.hidden = lista.scrollLeft >= max - 2;
+    // Al final no hay otra que asome: sin el degradado del borde (estilos.css)
+    lista.classList.toggle('carrusel__pista--final', lista.scrollLeft >= max - 2);
     if (!pos) return;
     if (!tarjetas.length || max <= 2) { pos.textContent = ''; return; }
     // Las que se ven enteras (o casi)
@@ -252,8 +269,8 @@
   }
 
   // Avanza o retrocede casi una pantalla de tarjetas
-  function moverCarrusel(sentido) {
-    var lista = document.getElementById('productos');
+  function moverCarrusel(c, sentido) {
+    var lista = c.lista;
     if (!lista) return;
     var primera = lista.querySelector('.producto');
     var paso = primera ? primera.getBoundingClientRect().width : lista.clientWidth;
@@ -261,21 +278,20 @@
     lista.scrollBy({ left: sentido * cuantas * (paso + parseFloat(getComputedStyle(lista).columnGap || 0)), behavior: movimiento() });
   }
 
-  function iniciarCarrusel() {
-    var lista = document.getElementById('productos');
-    var carrusel = document.getElementById('carrusel');
+  function iniciarCarrusel(c) {
+    c = c || piezasTienda();
+    var lista = c.lista;
+    var carrusel = c.carrusel;
     if (!lista || !carrusel) return;
     var pendiente = false;
     lista.addEventListener('scroll', function () {
       if (pendiente) return;
       pendiente = true;
-      window.requestAnimationFrame(function () { pendiente = false; actualizarCarrusel(); });
+      window.requestAnimationFrame(function () { pendiente = false; actualizarCarrusel(c); });
     }, { passive: true });
-    window.addEventListener('resize', actualizarCarrusel);
-    var ant = document.getElementById('carrusel-ant');
-    var sig = document.getElementById('carrusel-sig');
-    if (ant) ant.addEventListener('click', function () { moverCarrusel(-1); });
-    if (sig) sig.addEventListener('click', function () { moverCarrusel(1); });
+    window.addEventListener('resize', function () { actualizarCarrusel(c); });
+    if (c.ant) c.ant.addEventListener('click', function () { moverCarrusel(c, -1); });
+    if (c.sig) c.sig.addEventListener('click', function () { moverCarrusel(c, 1); });
     // Teclado: la tarjeta que recibe el foco se pone a la vista
     lista.addEventListener('focusin', function (e) {
       var li = e.target.closest('.producto');
@@ -344,6 +360,226 @@
     }
   }
 
+  // ---------- Temporada y anuncio ----------
+
+  // Pictogramas de cada temporada (trazos de 24×24, como los demás iconos)
+  var PICTOS = {
+    navidad: ['M12 3l5 7h-3l4 6H6l4-6H7z', 'M12 16v4'],
+    'black-friday': ['M3 12V4h8l10 10-8 8z', 'M7.5 7.5h.01'],
+    rebajas: ['M5 19 19 5', 'M7 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', 'M17 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z'],
+    feria: ['M12 3v4M12 17v4M3 12h4M17 12h4', 'M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8']
+  };
+  function picto(tipo, clase) {
+    var s = document.createElementNS(SVG, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    if (clase) s.setAttribute('class', clase);
+    (PICTOS[tipo] || []).forEach(function (d) {
+      var p = document.createElementNS(SVG, 'path');
+      p.setAttribute('d', d);
+      s.appendChild(p);
+    });
+    return s;
+  }
+
+  // «Piel» de temporada: clases «skin tema--…» en <html>; estilos.css tiñe con ellas portada, barras,
+  // botones, etiquetas y contacto. js/tema.js ya las pone antes de pintar (con la caché); aquí se
+  // corrigen si lo del servidor dice otra cosa. Solo en la web (el panel no se tiñe)
+  function aplicarPiel(t) {
+    if (document.body && document.body.classList.contains('panel')) return;
+    var h = document.documentElement;
+    Array.prototype.slice.call(h.classList).forEach(function (c) { if (/^tema--/.test(c)) h.classList.remove(c); });
+    h.classList.toggle('skin', !!t);
+    if (t) h.classList.add('tema--' + t.tipo);
+  }
+
+  // Banda fina encima de la barra roja con el texto de la temporada (o nada si no hay)
+  function pintarBanda(contenido) {
+    var t = C.temporadaActiva(contenido);
+    aplicarPiel(t);
+    var banda = document.getElementById('temporada-banda');
+    if (!t) { if (banda) banda.remove(); return; }
+    if (!banda) {
+      banda = el('div', 'banda-temporada');
+      banda.id = 'temporada-banda';
+      banda.setAttribute('role', 'note');
+      var barra = document.querySelector('.barra-sup');
+      if (!barra || !barra.parentNode) return;
+      barra.parentNode.insertBefore(banda, barra);
+    }
+    banda.className = 'banda-temporada tema--' + t.tipo;
+    banda.textContent = '';
+    var fila = el('p', 'envoltura banda-temporada__fila');
+    fila.appendChild(picto(t.tipo, 'banda-temporada__picto'));
+    fila.appendChild(el('span', 'banda-temporada__texto', t.texto));
+    banda.appendChild(fila);
+  }
+
+  // Sección con los productos marcados «En la temporada», con el mismo carrusel que «Ahora en tienda».
+  // Solo existe si hay temporada encendida y al menos uno a la vista; se construye una vez y se reutiliza
+  var seccionTemporada = null;
+  function crearSeccionTemporada() {
+    var s = el('section', 'seccion seccion-temporada');
+    s.id = 'temporada';
+    s.setAttribute('aria-labelledby', 't-temporada');
+    var env = el('div', 'envoltura');
+    var cab = el('div', 'seccion-temporada__cab');
+    var h = el('h2', 'cartel seccion-temporada__titulo');
+    h.id = 't-temporada';
+    cab.appendChild(h);
+    env.appendChild(cab);
+    var car = el('div', 'carrusel');
+    car.setAttribute('role', 'region');
+    car.setAttribute('aria-roledescription', 'carrusel');
+    function flecha(clase, etiqueta, d) {
+      var b = el('button', 'carrusel__flecha ' + clase);
+      b.type = 'button';
+      b.setAttribute('aria-controls', 'temporada-productos');
+      b.setAttribute('aria-label', etiqueta);
+      b.hidden = true;
+      var svg = document.createElementNS(SVG, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      var p = document.createElementNS(SVG, 'path');
+      p.setAttribute('d', d);
+      svg.appendChild(p);
+      b.appendChild(svg);
+      return b;
+    }
+    var ant = flecha('carrusel__flecha--ant', 'Productos anteriores', 'M15 5l-7 7 7 7');
+    var ul = el('ul', 'productos carrusel__pista');
+    ul.id = 'temporada-productos';
+    var sig = flecha('carrusel__flecha--sig', 'Productos siguientes', 'M9 5l7 7-7 7');
+    car.appendChild(ant);
+    car.appendChild(ul);
+    car.appendChild(sig);
+    env.appendChild(car);
+    var pos = el('p', 'carrusel__posicion');
+    pos.setAttribute('aria-hidden', 'true');
+    env.appendChild(pos);
+    s.appendChild(env);
+    var piezas = { lista: ul, carrusel: car, ant: ant, sig: sig, pos: pos };
+    iniciarCarrusel(piezas);
+    return { seccion: s, titulo: h, cab: cab, piezas: piezas };
+  }
+
+  // Dónde van el anuncio y la sección: justo después de la portada (el anuncio, antes)
+  function trasPortada(nodo, antesDe) {
+    var portada = document.querySelector('main .portada');
+    if (!portada || !portada.parentNode) return;
+    var ref = antesDe && antesDe.parentNode === portada.parentNode ? antesDe : portada.nextSibling;
+    if (nodo.parentNode !== portada.parentNode || nodo.nextSibling !== ref) portada.parentNode.insertBefore(nodo, ref);
+  }
+
+  function pintarSeccionTemporada(contenido) {
+    var t = C.temporadaActiva(contenido);
+    var lista = t ? visibles(contenido).filter(function (p) { return p.enTemporada; }) : [];
+    var enlaceNav = document.querySelector('.nav a[href="#temporada"]');
+    if (!lista.length) {
+      if (seccionTemporada && seccionTemporada.seccion.parentNode) seccionTemporada.seccion.remove();
+      if (enlaceNav) enlaceNav.remove();
+      return;
+    }
+    if (!seccionTemporada) seccionTemporada = crearSeccionTemporada();
+    var s = seccionTemporada;
+    s.seccion.className = 'seccion seccion-temporada tema--' + t.tipo;
+    s.titulo.textContent = t.titulo;
+    var viejo = s.cab.querySelector('svg');
+    if (viejo) viejo.remove();
+    s.cab.insertBefore(picto(t.tipo, 'seccion-temporada__picto'), s.titulo);
+    s.piezas.carrusel.setAttribute('aria-label', t.titulo);
+    var ul = s.piezas.lista;
+    var activo = document.activeElement;
+    var idFoco = activo && ul.contains(activo) && activo.closest('.producto') ? activo.closest('.producto').dataset.id : null;
+    ul.textContent = '';
+    lista.forEach(function (p) { ul.appendChild(crearTarjeta(p, contenido.tienda)); });
+    var anuncio = document.getElementById('anuncio-destacado');
+    trasPortada(s.seccion, null);
+    if (anuncio && anuncio.parentNode) trasPortada(anuncio, s.seccion);
+    if (idFoco) {
+      var otra = ul.querySelector('.producto[data-id="' + idFoco + '"] .producto__enlace');
+      if (otra) otra.focus({ preventScroll: true });
+    }
+    actualizarCarrusel(s.piezas);
+    // Enlace en el menú, el primero (solo mientras la sección existe)
+    var nav = document.querySelector('.nav');
+    if (nav) {
+      if (!enlaceNav) {
+        enlaceNav = el('a');
+        enlaceNav.href = '#temporada';
+        nav.insertBefore(enlaceNav, nav.firstChild);
+      }
+      enlaceNav.textContent = t.titulo;
+    }
+  }
+
+  // Tarjeta del anuncio (sorteo, evento…): justo después de la portada, con el color de la temporada
+  // (o el rojo de la tienda si no hay)
+  function crearAnuncio(a, tema) {
+    var s = el('section', 'anuncio-destacado tema--' + tema);
+    s.id = 'anuncio-destacado';
+    s.setAttribute('aria-labelledby', 'anuncio-titulo');
+    var env = el('div', 'envoltura anuncio-destacado__fila' + (a.foto ? ' anuncio-destacado__fila--foto' : ''));
+    if (a.foto) {
+      var fig = el('figure', 'anuncio-destacado__foto');
+      var img = el('img');
+      img.src = srcFoto(a.foto);
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      // Si no carga, sin foto (la tarjeta se queda con el texto)
+      siFalla(img, function () {
+        if (fig.parentNode) fig.remove();
+        env.classList.remove('anuncio-destacado__fila--foto');
+      });
+      fig.appendChild(img);
+      env.appendChild(fig);
+    }
+    var cuerpo = el('div', 'anuncio-destacado__cuerpo');
+    cuerpo.appendChild(el('span', 'pastilla anuncio-destacado__pastilla', C.TIPOS_ANUNCIO[a.tipo]));
+    var h = el('h2', 'cartel anuncio-destacado__titulo', a.titulo);
+    h.id = 'anuncio-titulo';
+    cuerpo.appendChild(h);
+    if (a.texto) cuerpo.appendChild(el('p', 'anuncio-destacado__texto', a.texto));
+    if (a.hasta) cuerpo.appendChild(el('p', 'anuncio-destacado__hasta', 'Hasta el ' + C.fechaLegible(a.hasta)));
+    if (a.boton.enlace || a.bases) {
+      var acciones = el('div', 'anuncio-destacado__acciones');
+      if (a.boton.enlace) {
+        var b = el('a', 'boton anuncio-destacado__boton',
+          a.boton.texto || (/^https:\/\/wa\.me\//.test(a.boton.enlace) ? 'Escríbenos' : 'Ver la publicación'));
+        b.href = a.boton.enlace;
+        nuevaPestana(b);
+        acciones.appendChild(b);
+      }
+      if (a.bases) {
+        var bases = el('a', 'anuncio-destacado__bases', a.tipo === 'sorteo' ? 'Bases del sorteo' : 'Bases');
+        bases.href = a.bases;
+        nuevaPestana(bases);
+        acciones.appendChild(bases);
+      }
+      cuerpo.appendChild(acciones);
+    }
+    env.appendChild(cuerpo);
+    s.appendChild(env);
+    return s;
+  }
+
+  function pintarAnuncio(contenido) {
+    var viejo = document.getElementById('anuncio-destacado');
+    var a = C.anuncioActivo(contenido);
+    if (viejo) viejo.remove();
+    if (!a) return;
+    var t = C.temporadaActiva(contenido);
+    var nuevo = crearAnuncio(a, t ? t.tipo : 'siestta');
+    trasPortada(nuevo, seccionTemporada && seccionTemporada.seccion.parentNode ? seccionTemporada.seccion : null);
+  }
+
+  function pintarTemporada(contenido) {
+    pintarBanda(contenido);
+    pintarSeccionTemporada(contenido);
+    pintarAnuncio(contenido);
+  }
+
   var FOTO_TIENDA = 'img/tienda-sofa-blanco.jpg';
   var ALT_TIENDA = 'Sofá chaiselongue blanco con una manta en la exposición de la tienda, junto al expositor de almohadas';
 
@@ -384,6 +620,14 @@
     caja.href = '#p/' + p.id;
     if (p.etiqueta) caja.appendChild(el('span', 'pastilla pastilla--' + p.etiqueta, C.ETIQUETAS[p.etiqueta]));
     caja.appendChild(el('span', 'oferta-destacada__nombre', p.nombre));
+    // Un sello discreto de la temporada (si hay una encendida)
+    var t = C.temporadaActiva(contenido);
+    if (t) {
+      var sello = el('span', 'oferta-destacada__temporada tema--' + t.tipo);
+      sello.appendChild(picto(t.tipo, 'oferta-destacada__picto'));
+      sello.appendChild(document.createTextNode(C.TEMPORADAS[t.tipo].nombre));
+      caja.appendChild(sello);
+    }
     if (p.estado === 'reservado') caja.appendChild(el('span', 'oferta-destacada__estado', 'Reservado'));
     var precio = el('span', 'etiqueta-precio' + (p.precio === null ? ' etiqueta-precio--consultar' : ''));
     if (p.precio === null) {
@@ -435,6 +679,7 @@
     pintarEscaparate(contenido);
     pintarTira(contenido);
     pintarPortada(contenido);
+    pintarTemporada(contenido);
 
     // Cuando llega lo del servidor, o el panel guarda en otra pestaña, se repinta
     C.alCambiar(function () {
@@ -442,6 +687,7 @@
       pintarEscaparate(contenido);
       pintarTira(contenido);
       pintarPortada(contenido);
+      pintarTemporada(contenido);
     });
   }
 
@@ -449,6 +695,9 @@
   window.Escaparate = {
     crearTarjeta: crearTarjeta,
     pintarPortada: pintarPortada,
+    // Para la vista previa del panel
+    picto: picto,
+    crearAnuncio: crearAnuncio,
     piezas: {
       el: el, icono: icono, iconoWa: iconoWa, srcFoto: srcFoto, crearPrecio: crearPrecio,
       siFalla: siFalla, marcadorEnLugar: marcadorEnLugar,

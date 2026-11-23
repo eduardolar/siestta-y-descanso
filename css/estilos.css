@@ -456,27 +456,62 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   font: 800 .72rem/1.2 var(--letra-titulo); letter-spacing: .06em; text-transform: uppercase;
 }
 
-/* ---------- 5. Pie ---------- */
-.pie { background: var(--tinta); color: #fff; padding: 36px 0 16px; }
-.pie__fila { display: flex; align-items: center; gap: 24px 48px; flex-wrap: wrap; }
-.pie__sello { flex: none; padding: 10px 14px; background: var(--blanco); border-radius: var(--radio); }
+/* ---------- 5. Pie: cuatro columnas (marca, secciones, contacto, redes) y franja final pequeña ---------- */
+.pie { background: var(--tinta); color: #fff; padding: 40px 0 0; border-top: 6px solid var(--s-linea, var(--rojo)); }
+.pie__rejilla { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 28px 40px; }
+.pie__col { min-width: 0; }
+.pie__sello { display: inline-block; padding: 10px 14px; background: var(--blanco); border-radius: var(--radio); }
 .pie__sello img { width: 120px; height: auto; }
-.pie__redes { flex: 1 1 320px; }
-.pie__redes h2 { color: #fff; font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.2rem); }
-.redes__lista { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
-.redes__lista a {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px;
-  border-radius: var(--radio); border: 2px solid rgb(255 255 255 / .4);
-  color: #fff; font-weight: 700; font-size: .92rem; text-decoration: none;
+.pie__frase { margin-top: 14px; max-width: 30ch; font-size: .95rem; color: rgb(255 255 255 / .85); }
+.pie__titulo {
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--s-linea, var(--rojo));
+  font: 800 .8rem/1.2 var(--letra-titulo); letter-spacing: .08em; text-transform: uppercase; color: #fff; word-spacing: normal;
 }
-.redes__lista a:hover { background: #fff; color: var(--tinta); border-color: #fff; }
-.redes__lista svg { width: 18px; height: 18px; }
-.pie__legal {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 20px;
-  margin-top: 28px; padding-block: 18px 8px; border-top: 1px solid rgb(255 255 255 / .18);
-  font-size: .85rem; color: rgb(255 255 255 / .8);
+.pie__lista { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.pie__lista a {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 40px;
+  color: #fff; font-weight: 600; font-size: .95rem; text-decoration: none;
+}
+.pie__lista a:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.pie__lista svg { width: 18px; height: 18px; flex: none; fill: none; color: rgb(255 255 255 / .85); }
+.pie__contacto a { font-weight: 700; }
+/* Redes: círculo con el icono y su nombre debajo; las tres siempre en una fila */
+.pie__redes-texto { margin: -4px 0 12px; font-size: .9rem; color: rgb(255 255 255 / .85); }
+.redes__lista { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: nowrap; gap: 12px; }
+.red {
+  display: grid; justify-items: center; gap: 6px; min-width: 64px; text-decoration: none;
+  color: #fff; font-size: .85rem; font-weight: 700;
+}
+.red__icono {
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  background: #fff; color: var(--tinta);
+  transition: transform .15s, background-color .15s, color .15s;
+}
+.red svg { width: 24px; height: 24px; }
+.pie .red { color: #fff; }
+.red--fb:hover .red__icono { background: #1877f2; color: #fff; }
+.red--ig:hover .red__icono { background: #c13584; color: #fff; }
+.red--tt:hover .red__icono { background: #000; color: #fff; box-shadow: inset 0 0 0 2px #fff; }
+@media (prefers-reduced-motion: no-preference) { .red:hover .red__icono { transform: translateY(-2px); } }
+.pie .red:focus-visible { outline: 3px solid var(--amarillo); outline-offset: 3px; border-radius: 6px; }
+/* En la tarjeta de visita: más pequeños, con borde (sobre blanco); los tres siempre en una fila */
+.redes__lista--peque { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 330px; }
+.redes__lista--peque .red { display: grid; justify-items: center; gap: 4px; min-width: 0; padding: 6px 2px; border: 2px solid var(--linea); border-radius: 8px; color: var(--tinta); font-size: .875rem; }
+.redes__lista--peque .red:hover { border-color: var(--tinta); }
+.redes__lista--peque .red__icono { width: 34px; height: 34px; background: var(--gris); }
+.redes__lista--peque .red svg { width: 18px; height: 18px; }
+.pie__legal { margin-top: 32px; background: rgb(0 0 0 / .25); }
+.pie__legal-fila {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px;
+  padding-block: 14px; font-size: .875rem; color: rgb(255 255 255 / .8);
 }
 .pie a { color: #fff; }
+@media (max-width: 900px) {
+  .pie__rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pie__marca { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
+  .pie__frase { margin-top: 0; }
+  .pie__rejilla > .pie__col:last-child { grid-column: 1 / -1; }
+}
 
 /* Barra del móvil */
 .barra-movil { display: none; }
@@ -606,12 +641,10 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   .abierto { padding: 22px; }
 
   .pie { padding-top: 32px; padding-bottom: calc(20px + 62px + env(safe-area-inset-bottom)); }   /* hueco para la barra fija */
-  .pie__fila { flex-wrap: nowrap; align-items: center; gap: 18px; }
   .pie__sello { padding: 8px 10px; }
   .pie__sello img { width: 80px; }
-  .pie__redes h2 { font-size: 1.4rem; }
-  .redes__lista { gap: 8px; }
-  .redes__lista a { padding: 0 12px; font-size: .85rem; gap: 6px; }
+  .pie__rejilla { gap: 22px 20px; }
+  .pie__frase { font-size: .88rem; }
   .pie__legal { margin-top: 24px; }
 
   .barra-movil {
@@ -809,3 +842,279 @@ html.con-ficha { overflow: hidden; }   /* la página no se mueve detrás de la f
 
 /* Botón de WhatsApp sobre la portada roja: borde blanco para que no dependa solo del color */
 .portada .boton--wa { box-shadow: 0 0 0 2px #fff; }
+
+/* ---------- Temporada (Navidad, Black Friday, Rebajas, Feria) y anuncio destacado ----------
+   Colores de cada una en variables: fondo, texto y detalle. Sin animaciones. */
+.tema--navidad { --t-fondo: #1f4d3a; --t-texto: #fff; --t-acento: #d9b65d; --t-acento-texto: #1f2a22; }
+.tema--black-friday { --t-fondo: #111; --t-texto: #fff; --t-acento: var(--amarillo); --t-acento-texto: var(--tinta); }
+.tema--rebajas { --t-fondo: var(--rojo); --t-texto: #fff; --t-acento: #fff; --t-acento-texto: var(--rojo-oscuro); }
+.tema--feria { --t-fondo: var(--amarillo); --t-texto: var(--tinta); --t-acento: var(--tinta); --t-acento-texto: #fff; }
+.tema--siestta { --t-fondo: var(--rojo); --t-texto: #fff; --t-acento: var(--amarillo); --t-acento-texto: var(--tinta); }
+
+/* Banda fina de arriba */
+.banda-temporada { background: var(--t-fondo); color: var(--t-texto); font-size: .82rem; font-weight: 700; border-bottom: 2px solid var(--t-acento); }
+.banda-temporada__fila { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 30px; padding: 4px 0; text-align: center; }
+.banda-temporada__texto { min-width: 0; overflow-wrap: anywhere; }
+.banda-temporada__picto, .seccion-temporada__picto, .oferta-destacada__picto {
+  flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.banda-temporada__picto { width: 16px; height: 16px; color: var(--t-acento); }
+.tema--rebajas .banda-temporada__picto, .tema--feria .banda-temporada__picto { color: currentColor; }
+
+/* Sello en la tarjeta de la portada */
+.oferta-destacada__temporada {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 2px;
+  background: var(--t-fondo); color: var(--t-texto); font: 800 .72rem/1.2 var(--letra-titulo); letter-spacing: .03em; text-transform: uppercase;
+}
+.oferta-destacada__picto { width: 13px; height: 13px; }
+
+/* Sección con los productos de la temporada (el mismo carrusel que «Ahora en tienda») */
+.seccion-temporada { padding-bottom: 8px; }
+.seccion-temporada__cab {
+  display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: var(--radio);
+  background: var(--t-fondo); color: var(--t-texto); border-left: 6px solid var(--t-acento);
+}
+.seccion-temporada__titulo { margin: 0; font-size: clamp(1.6rem, 4vw, 2.4rem); min-width: 0; overflow-wrap: anywhere; }
+.seccion-temporada__picto { width: 30px; height: 30px; color: var(--t-acento); }
+.tema--rebajas .seccion-temporada__picto, .tema--feria .seccion-temporada__picto { color: currentColor; }
+.seccion-temporada .carrusel { margin-top: 20px; }
+
+/* Anuncio destacado (sorteo, evento…) */
+.anuncio-destacado { padding: 32px 0 0; }
+.anuncio-destacado__fila {
+  display: grid; gap: 0; background: var(--t-fondo); color: var(--t-texto); border-radius: var(--radio); overflow: hidden;
+}
+.anuncio-destacado__fila--foto { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+.anuncio-destacado__foto { margin: 0; min-height: 220px; }
+.anuncio-destacado__foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.anuncio-destacado__cuerpo { display: grid; justify-items: start; align-content: center; gap: 12px; padding: 28px 32px; min-width: 0; }
+.anuncio-destacado__pastilla { background: var(--t-acento); color: var(--t-acento-texto); }
+.anuncio-destacado__titulo { margin: 0; font-size: clamp(1.8rem, 4.4vw, 3rem); overflow-wrap: anywhere; max-width: 100%; }
+.anuncio-destacado__texto { margin: 0; font-size: 1.05rem; line-height: 1.45; max-width: 60ch; overflow-wrap: anywhere; }
+.anuncio-destacado__hasta { margin: 0; font-weight: 700; font-size: .95rem; }
+.anuncio-destacado__acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-top: 4px; }
+.anuncio-destacado__boton { background: var(--t-acento); color: var(--t-acento-texto); }
+.anuncio-destacado__boton:hover { background: var(--t-texto); color: var(--t-fondo); }
+.anuncio-destacado__bases { color: inherit; font-size: .88rem; font-weight: 600; text-underline-offset: 3px; }
+.anuncio-destacado :focus-visible { outline: 3px solid var(--t-acento); outline-offset: 3px; }
+.tema--rebajas.anuncio-destacado :focus-visible, .tema--siestta.anuncio-destacado :focus-visible { outline-color: var(--amarillo); }
+
+@media (max-width: 680px) {
+  .banda-temporada { font-size: .78rem; }
+  .anuncio-destacado { padding-top: 20px; }
+  .anuncio-destacado__fila--foto { grid-template-columns: 1fr; }
+  .anuncio-destacado__foto { min-height: 0; aspect-ratio: 16 / 10; }
+  .anuncio-destacado__cuerpo { padding: 22px 20px; }
+  .seccion-temporada__cab { padding: 12px 14px; }
+}
+
+/* =====================================================================================================
+   Opiniones en carrusel (js/main.js): 1 a la vez en el móvil y 2 desde 640 px (con 3, se ven 2 y avanza de
+   una en una), todas de la misma altura. Flechas a los lados; puntos y pausa juntos debajo.
+   Gira sola cada ~6 s salvo con «reducir movimiento».
+   ===================================================================================================== */
+.citas-carrusel { min-width: 0; }
+.citas-carrusel__marco { position: relative; }
+.citas-carrusel.es-carrusel .citas {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 100%; grid-template-columns: none; gap: 16px;
+  overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+  margin: 0; padding: 0; position: relative;
+}
+@media (min-width: 640px) { .citas-carrusel.es-carrusel .citas { grid-auto-columns: calc((100% - 16px) / 2); } }
+.citas-carrusel.es-carrusel .citas::-webkit-scrollbar { display: none; }
+.citas-carrusel.es-carrusel .cita { flex: none; scroll-snap-align: start; }
+@media (prefers-reduced-motion: no-preference) { .citas-carrusel.es-carrusel .citas { scroll-behavior: smooth; } }
+/* Cada opinión: comilla (una sola), texto y firma abajo */
+.cita { padding: 22px 22px 18px; border-top: 4px solid var(--s-marca, var(--rojo)); }
+.cita blockquote { font-size: 1.02rem; font-weight: 500; line-height: 1.5; }
+.cita blockquote::before {
+  content: "“"; display: block; height: .5em; margin-bottom: 8px;
+  font: 900 3rem/1 var(--letra-titulo); color: var(--s-marca, var(--rojo));
+}
+.cita__firma { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 16px; }
+.cita__inicial {
+  display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 50%;
+  background: var(--s-marca, var(--rojo)); color: #fff; font: 800 1rem/1 var(--letra-titulo);
+}
+.cita__datos { display: grid; min-width: 0; line-height: 1.25; }
+.cita__nombre { font-weight: 700; font-size: .95rem; color: var(--tinta); overflow-wrap: anywhere; }
+.cita__fuente { display: inline-flex; align-items: center; gap: 5px; font-size: .875rem; color: var(--tinta-suave); }
+/* «G» sencilla (no es el logo oficial) */
+.cita__fuente::before {
+  content: "G"; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
+  border: 1.5px solid currentColor; font: 800 .58rem/1 var(--letra);
+}
+/* Flechas a los lados, centradas en vertical (por fuera en escritorio, por encima del borde en el móvil) */
+.citas-carrusel__boton {
+  display: grid; place-items: center; width: 44px; height: 44px; flex: none; padding: 0; cursor: pointer;
+  background: var(--blanco); color: var(--tinta); border: 2px solid var(--tinta); border-radius: 50%;
+}
+.citas-carrusel__boton[hidden] { display: none; }
+.citas-carrusel__boton svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.citas-carrusel__boton:hover { background: var(--tinta); color: #fff; }
+.citas-carrusel__flecha { position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); box-shadow: 0 4px 12px rgb(26 20 20 / .15); }
+.citas-carrusel__flecha--ant { left: -22px; }
+.citas-carrusel__flecha--sig { right: -22px; }
+@media (max-width: 1100px) { .citas-carrusel__flecha--ant { left: -10px; } .citas-carrusel__flecha--sig { right: -10px; } }
+/* Móvil: las flechas van sobre el borde de la tarjeta; el texto deja su sitio para que no lo tapen */
+@media (max-width: 639px) {
+  .citas-carrusel.es-carrusel .cita { padding-inline: 44px; }
+  .citas-carrusel__flecha { width: 40px; height: 40px; }
+  .citas-carrusel__flecha--ant { left: -4px; }
+  .citas-carrusel__flecha--sig { right: -4px; }
+}
+/* Debajo: puntos y pausa, juntos y centrados */
+.citas-carrusel__controles { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; }
+.citas-carrusel__controles[hidden] { display: none; }
+.citas-carrusel__pausa { width: 40px; height: 40px; border-width: 2px; }
+.citas-carrusel__pausa .ico-seguir { display: none; }
+.citas-carrusel__pausa[aria-pressed="true"] .ico-pausa { display: none; }
+.citas-carrusel__pausa[aria-pressed="true"] .ico-seguir { display: block; fill: currentColor; stroke: none; }
+.citas-carrusel__pausa[hidden] { display: none; }
+.citas-carrusel__puntos { display: flex; flex-wrap: wrap; justify-content: center; }
+.citas-carrusel__punto { display: grid; place-items: center; width: 32px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
+.citas-carrusel__punto::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--tinta); background: transparent; }
+.citas-carrusel__punto[aria-current="true"]::before { width: 22px; border-radius: 6px; background: var(--s-marca, var(--rojo)); border-color: var(--s-marca, var(--rojo)); }
+
+/* =====================================================================================================
+   Visítanos: tarjeta de visita (cada dato en su fila con su icono)
+   ===================================================================================================== */
+.visitanos__titulo { margin-bottom: 22px; }
+.visitanos__rejilla { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 28px; align-items: stretch; }
+.visitanos__foto { position: relative; margin: 0; min-height: 320px; border-radius: 8px; overflow: hidden; background: var(--gris-2); }
+.visitanos__foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.visitanos__foto figcaption { position: absolute; left: 16px; bottom: 16px; }
+.visitanos__mapa {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 18px; border-radius: var(--radio);
+  background: var(--blanco); color: var(--tinta); font-weight: 800; text-decoration: none; box-shadow: 0 6px 18px rgb(26 20 20 / .25);
+}
+.visitanos__mapa svg { width: 20px; height: 20px; color: var(--s-marca, var(--rojo)); }
+.visitanos__mapa:hover { background: var(--tinta); color: #fff; }
+@media (max-width: 900px) {
+  .visitanos__rejilla { grid-template-columns: 1fr; }
+  .visitanos__foto { display: none; } /* en el móvil, la tarjeta sola (Cómo llegar ya está dentro) */
+}
+.visita { background: var(--blanco); border: 1px solid var(--linea); border-top: 6px solid var(--s-marca, var(--rojo));
+  border-radius: 8px; box-shadow: 0 10px 30px rgb(26 20 20 / .08); overflow: hidden;
+}
+.visita__cab { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--linea); background: var(--gris); }
+.visita__logo { width: 92px; height: auto; flex: none; }
+.visita__nombre { display: grid; gap: 4px; min-width: 0; }
+.visita__tienda { font: 900 1.5rem/1 var(--letra-titulo); letter-spacing: -.03em; }
+.visita__estado { font-size: .92rem; }
+.visita__datos { margin: 0; padding: 6px 22px; }
+.visita__fila { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 4px 18px; padding: 14px 0; border-top: 1px solid var(--linea); }
+.visita__fila:first-child { border-top: 0; }
+.visita__fila dt {
+  display: flex; align-items: center; gap: 10px; align-self: start; min-height: 26px;
+  font: 800 .78rem/1.2 var(--letra-titulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave);
+}
+.visita__fila dt svg { width: 22px; height: 22px; flex: none; color: var(--s-marca, var(--rojo)); }
+.visita__fila dt .visita__ico-wa { color: var(--wa); }
+.visita__fila dd { margin: 0; display: grid; gap: 4px; min-width: 0; font-size: 1.05rem; line-height: 1.45; }
+.visita__valor { font-weight: 600; overflow-wrap: anywhere; }
+.visita__tocable { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; margin-block: -9px; font-weight: 800; font-size: 1.15rem; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: var(--s-marca, var(--rojo)); }
+.visita__enlace { justify-self: start; min-height: 40px; }
+.visita__enlace[hidden], .visita__fila[hidden] { display: none; }
+/* «Cómo llegar →»: el subrayado sigue por debajo de la flecha */
+.visita__enlace::after { display: inline; }
+@media (prefers-reduced-motion: no-preference) { .visita__enlace:hover::after { transform: none; } }
+/* Estado con punto de color: verde abierto, rojo cerrado (el texto ya dice cuál) */
+.visita__estado::before { box-shadow: none; background: var(--rojo); }
+.visita__estado[data-abierto="si"]::before { background: var(--verde); box-shadow: 0 0 0 3px rgb(46 155 72 / .25); }
+.visita .abierto__horario { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; font-size: 1rem; }
+.visita__tramo { display: grid; grid-template-columns: minmax(8.5rem, auto) minmax(0, 1fr); gap: 0 12px; }
+.visita__tramo strong { font-weight: 700; }
+.visita__nota { font-size: .875rem; color: var(--tinta-suave); }
+.visita__acciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 16px 22px 22px; }
+.visita__acciones .boton { min-height: 56px; font-size: 1.05rem; }
+@media (max-width: 640px) {
+  .visita__cab { padding: 14px 16px; }
+  .visita__logo { width: 72px; }
+  .visita__datos { padding: 2px 16px; }
+  .visita__fila { grid-template-columns: 1fr; }
+  .visita__tramo { grid-template-columns: 1fr; }
+  .visita__acciones { padding: 14px 16px 18px; }
+  .visita__acciones .boton { min-height: 60px; }
+}
+
+/* =====================================================================================================
+   PIEL DE TEMPORADA: con «skin tema--…» en <html> (js/tema.js y js/escaparate.js) se tiñen portada,
+   barras, botones principales, etiquetas de oferta, contacto y opiniones. Sin temporada no aplica nada.
+   Contrastes (texto normal ≥ 4,5:1): blanco sobre #1f4d3a 9,9 · #e6c977 sobre #1f4d3a 6,3 · amarillo sobre
+   #111 14,6 · blanco sobre #7d1220 10,4 · tinta sobre amarillo 14 · #9e1726 sobre amarillo 5,9 ·
+   amarillo sobre tinta 14.
+   ===================================================================================================== */
+html.skin.tema--navidad {
+  --s-portada: #1f4d3a; --s-portada-texto: #fff; --s-em: #e6c977; --s-barra: #163a2b; --s-barra-texto: #fff;
+  --s-marca: #1f4d3a; --s-linea: #d9b65d; --s-boton: var(--rojo); --s-boton-hover: var(--rojo-oscuro); --s-boton-texto: #fff;
+  --s-etiqueta: #1f4d3a; --s-etiqueta-texto: #fff; --s-antetitulo: #1f4d3a; --s-rotulo: "★ Navidad";
+  --s-rotulo-fondo: #e6c977; --s-rotulo-texto: #1f2a22;
+  --s-deco: radial-gradient(circle at 20% 30%, rgb(230 201 119 / .16) 0 2px, transparent 3px) 0 0 / 46px 46px,
+            radial-gradient(circle at 70% 75%, rgb(255 255 255 / .1) 0 1.5px, transparent 2.5px) 0 0 / 34px 34px;
+}
+html.skin.tema--black-friday {
+  --s-portada: #111; --s-portada-texto: #fff; --s-em: var(--amarillo); --s-barra: #000; --s-barra-texto: #fff;
+  --s-marca: #111; --s-linea: var(--amarillo); --s-boton: #111; --s-boton-hover: #333; --s-boton-texto: var(--amarillo);
+  --s-etiqueta: #111; --s-etiqueta-texto: var(--amarillo); --s-antetitulo: #111; --s-rotulo: "Black Friday";
+  --s-rotulo-fondo: var(--amarillo); --s-rotulo-texto: #111;
+  --s-deco: repeating-linear-gradient(135deg, rgb(255 212 0 / .07) 0 14px, transparent 14px 40px);
+}
+html.skin.tema--rebajas {
+  --s-portada: var(--rojo); --s-portada-texto: #fff; --s-em: var(--amarillo); --s-barra: #7d1220; --s-barra-texto: #fff;
+  --s-marca: var(--rojo); --s-linea: #7d1220; --s-boton: #7d1220; --s-boton-hover: #5e0d18; --s-boton-texto: #fff;
+  --s-etiqueta: #fff; --s-etiqueta-texto: #7d1220; --s-antetitulo: #9e1726; --s-rotulo: "% Rebajas";
+  --s-rotulo-fondo: #fff; --s-rotulo-texto: #7d1220;
+  --s-deco: repeating-linear-gradient(-45deg, rgb(255 255 255 / .07) 0 10px, transparent 10px 30px);
+}
+html.skin.tema--feria {
+  --s-portada: var(--amarillo); --s-portada-texto: var(--tinta); --s-em: #9e1726; --s-barra: var(--tinta); --s-barra-texto: var(--amarillo);
+  --s-marca: #9e1726; --s-linea: #9e1726; --s-boton: var(--rojo); --s-boton-hover: var(--rojo-oscuro); --s-boton-texto: #fff;
+  --s-etiqueta: var(--tinta); --s-etiqueta-texto: var(--amarillo); --s-antetitulo: #9e1726; --s-rotulo: "¡Feria!";
+  --s-rotulo-fondo: var(--tinta); --s-rotulo-texto: var(--amarillo);
+  --s-deco: radial-gradient(circle at 25% 25%, rgb(158 23 38 / .14) 0 3px, transparent 4px) 0 0 / 52px 52px,
+            radial-gradient(circle at 75% 70%, rgb(26 111 176 / .12) 0 2.5px, transparent 3.5px) 0 0 / 40px 40px;
+}
+
+html.skin .barra-sup { background: var(--s-barra); color: var(--s-barra-texto); }
+html.skin .barra-sup a, html.skin .barra-sup .estado { color: var(--s-barra-texto); }
+html.skin .cabecera { border-bottom: 3px solid var(--s-linea); }
+html.skin .nav a:hover { border-bottom-color: var(--s-linea); }
+html.skin .portada { background: var(--s-deco), var(--s-portada); color: var(--s-portada-texto); }
+html.skin .portada h1, html.skin .portada .antetitulo, html.skin .entradilla { color: var(--s-portada-texto); }
+html.skin .portada h1 em { color: var(--s-em); }
+html.skin .portada__foto img { background: var(--s-barra); }
+/* Rótulo grande de la temporada encima del titular */
+html.skin .portada__texto::before {
+  content: var(--s-rotulo); display: inline-block; margin-bottom: 14px; padding: 6px 14px 7px; border-radius: 3px;
+  background: var(--s-rotulo-fondo); color: var(--s-rotulo-texto);
+  font: 900 clamp(1.1rem, .9rem + .9vw, 1.6rem)/1 var(--letra-titulo); letter-spacing: .02em; text-transform: uppercase;
+}
+html.skin .antetitulo { color: var(--s-antetitulo); }
+html.skin .boton--rojo, html.skin .boton--oscuro, html.skin .boton--noche { background: var(--s-boton); color: var(--s-boton-texto); }
+html.skin .boton--rojo:hover, html.skin .boton--oscuro:hover, html.skin .boton--noche:hover { background: var(--s-boton-hover); }
+html.skin .pastilla--oferta { background: var(--s-etiqueta); color: var(--s-etiqueta-texto); }
+html.skin.tema--rebajas .pastilla--oferta { box-shadow: inset 0 0 0 2px #7d1220; }
+html.skin .tira-expo { background: var(--s-deco), var(--s-barra); color: var(--s-barra-texto); }
+html.skin .tira-expo__nota { color: var(--s-barra-texto); }
+html.skin .filtro--ofertas { color: var(--s-marca); border-color: var(--s-marca); }
+html.skin .filtro--ofertas[aria-pressed="true"] { background: var(--s-marca); color: #fff; }
+html.skin.tema--feria .filtro--ofertas[aria-pressed="true"] { color: #fff; }
+html.skin .enlace-flecha { text-decoration-color: var(--s-marca); }
+/* Feria (fondo amarillo): el amarillo de botones y focos de la portada no se vería → tinta */
+html.skin.tema--feria .portada .boton--amarillo { background: var(--tinta); color: var(--amarillo); }
+html.skin.tema--feria .portada .boton--claro { border-color: var(--tinta); color: var(--tinta); }
+html.skin.tema--feria .portada__texto :focus-visible, html.skin.tema--feria .oferta-destacada:focus-visible { outline-color: var(--tinta); }
+html.skin.tema--feria .tira-expo .boton--amarillo { background: var(--amarillo); color: var(--tinta); }
+/* Cambio suave si la temporada llega del servidor después de pintar con la caché */
+@media (prefers-reduced-motion: no-preference) {
+  .barra-sup, .portada, .cabecera, .tira-expo, .pastilla, .visita { transition: background-color .5s, color .5s, border-color .5s; }
+}
+
+/* Carrusel de productos en móvil y tableta: la tarjeta que asoma se funde con el fondo (menos al llegar al final) */
+@media (max-width: 960px) {
+  .productos.carrusel__pista:not(.carrusel__pista--final) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 110px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 110px), transparent);
+  }
+}

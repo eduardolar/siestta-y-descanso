@@ -241,7 +241,9 @@
     var mismos = lista.every(function (x) { return x.categoria === p.categoria; });
     var seccion = el('section', 'detalle__mas');
     seccion.setAttribute('aria-labelledby', 'detalle-mas');
-    var h = el('h3', 'detalle__mas-titulo', mismos ? 'Más ' + C.CATEGORIAS[p.categoria].toLowerCase() : 'Más');
+    // «Otros» es un cajón de sastre: «Más otros» no se entiende, mejor «Más productos»
+    var titulo = p.categoria === 'otros' ? 'Más productos' : 'Más ' + C.CATEGORIAS[p.categoria].toLowerCase();
+    var h = el('h3', 'detalle__mas-titulo', mismos ? titulo : 'Más');
     h.id = 'detalle-mas';
     seccion.appendChild(h);
     var ul = el('ul', 'mini');
@@ -414,10 +416,10 @@
 
   function alPulsar(e) {
     if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-    // En «Ahora en tienda» toda la tarjeta abre la ficha, menos sus botones «Reservar» y «Preguntar»
+    // En «Ahora en tienda» (y en la sección de la temporada) toda la tarjeta abre la ficha, menos «Reservar» y «Preguntar»
     var n = e.target.closest('a[href^="#p/"], [data-abrir-ficha]');
     if (!n) {
-      var t = e.target.closest('#productos .producto');
+      var t = e.target.closest('.carrusel__pista .producto');
       if (!t || e.target.closest('.producto__acciones, a, button')) return;
       n = t.querySelector('.producto__enlace');
       if (!n) return;
