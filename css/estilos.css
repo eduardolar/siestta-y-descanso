@@ -1104,14 +1104,30 @@ html.skin .portada__texto { padding-top: 86px; }
 .banderines__fila path:nth-child(2n) { animation-delay: -1.3s; }
 .banderines .b1 { fill: #c42032; } .banderines .b2 { fill: #1a6fb0; } .banderines .b3 { fill: #2e9b48; } .banderines .b4 { fill: #fff; stroke: #1a1414; stroke-width: 1.5; }
 @keyframes ondear { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
-/* Rebajas: cinta diagonal en la esquina de arriba a la derecha */
-.cinta-rebajas {
-  position: absolute; top: 34px; right: -70px; width: 320px; padding: 8px 0; transform: rotate(35deg);
-  background: #fff; color: #7d1220; text-align: center; box-shadow: 0 6px 16px rgb(0 0 0 / .25);
-  font: 900 1.05rem/1 var(--letra-titulo); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
-  animation: entrar-cinta .8s cubic-bezier(.3, 1.5, .5, 1) both;
+/* Rebajas: tendedero de etiquetas a todo el ancho, arriba (la cuerda cuelga igual que la de los banderines de la Feria:
+   y = 4 + 80·t·(1 − t) px). Cada etiqueta cuelga de un hilo y se balancea un poco */
+.tendedero { position: absolute; left: 0; right: 0; top: 0; height: 60px; }
+.deco-tira .tendedero__cuerda { position: absolute; left: 0; top: 0; width: 100%; height: 60px; overflow: visible; }
+.tendedero__cuerda path { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.tendedero__etiqueta {
+  position: absolute; width: 78px; margin-left: -39px; padding: 13px 0 8px; text-align: center;
+  background: #7d1220; color: #fff; font: 900 .74rem/1 var(--letra-titulo); letter-spacing: .04em;
+  clip-path: polygon(50% 0, 100% 22%, 100% 100%, 0 100%, 0 22%); box-shadow: 0 2px 0 rgb(0 0 0 / .2);
+  transform-origin: 50% -6px; animation: ondear-etiqueta 2.4s ease-in-out infinite alternate, entrar-arriba .9s ease-out both;
 }
-@keyframes entrar-cinta { from { transform: rotate(35deg) translateY(-80px); opacity: 0; } to { transform: rotate(35deg); opacity: 1; } }
+.tendedero__etiqueta::before { content: ""; position: absolute; left: 50%; top: 5px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #c42032; }
+.tendedero__etiqueta--blanca { background: #fff; color: #9e1726; }
+.tendedero__etiqueta--blanca::before { background: #c42032; }
+@keyframes ondear-etiqueta { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+.tendedero__etiqueta--1 { left: 5.56%; top: 14.2px; animation-delay: -0.00s; }
+.tendedero__etiqueta--2 { left: 16.67%; top: 21.1px; animation-delay: -0.37s; }
+.tendedero__etiqueta--3 { left: 27.78%; top: 26.0px; animation-delay: -0.74s; }
+.tendedero__etiqueta--4 { left: 38.89%; top: 29.0px; animation-delay: -1.11s; }
+.tendedero__etiqueta--5 { left: 50.00%; top: 30.0px; animation-delay: -1.48s; }
+.tendedero__etiqueta--6 { left: 61.11%; top: 29.0px; animation-delay: -1.85s; }
+.tendedero__etiqueta--7 { left: 72.22%; top: 26.0px; animation-delay: -2.22s; }
+.tendedero__etiqueta--8 { left: 83.33%; top: 21.1px; animation-delay: -0.19s; }
+.tendedero__etiqueta--9 { left: 94.44%; top: 14.2px; animation-delay: -0.56s; }
 @keyframes entrar-arriba { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* Sobre la foto: arriba y a la derecha (la tarjeta del precio está abajo a la izquierda) */
@@ -1141,8 +1157,7 @@ html.skin .portada__texto { padding-top: 86px; }
 .etiqueta__texto { fill: #111; font: 900 17px var(--letra-titulo); letter-spacing: -.02em; text-anchor: middle; } /* deja aire a los lados de la etiqueta (60 de ancho) */
 /* Rebajas: sellos girados que entran con un rebote */
 .sello { animation: entrar-sello .7s cubic-bezier(.3, 1.6, .5, 1) both; }
-.sello--1 { top: 110px !important; right: 8%; width: 116px; rotate: -14deg; animation-delay: .25s; }
-.sello--2 { top: 40px !important; right: 34%; width: 80px; rotate: 12deg; animation-delay: .45s; }
+.sello--2 { top: 84px !important; right: 34%; width: 80px; rotate: 12deg; animation-delay: .45s; } /* por debajo de las etiquetas del tendedero */
 .sello__aro { fill: #fff; stroke: #c42032; stroke-width: 5; }
 .sello__aro--fino { fill: none; stroke-width: 2; stroke-dasharray: 4 4; }
 .sello__texto { fill: #c42032; font: 900 28px var(--letra-titulo); text-anchor: middle; }
@@ -1203,11 +1218,11 @@ html.skin .producto--temporada .producto__foto::after {
   html.skin .portada__texto { padding-top: 64px; }
   .deco-tira { height: 54px; }
   .banderines { height: 54px !important; }
-  .cinta-rebajas { top: 18px; right: -92px; width: 280px; font-size: .85rem; }
+  .tendedero__etiqueta { width: 58px; margin-left: -29px; padding: 11px 0 6px; font-size: .6rem; }
   .bola--1 { width: 34px; } .bola--2 { width: 30px; } .bola--3 { width: 38px; }
   .estrella-navidad { top: 16px !important; right: 52%; width: 32px; } /* sin pisar la tarjeta del precio, que con Navidad sube */
   .etiqueta-colgada { width: 52px !important; } .etiqueta-colgada--1 { display: none !important; }
-  .sello--1 { width: 84px; top: 70px !important; } .sello--2 { width: 58px; top: 20px !important; }
+  .sello--2 { width: 58px; top: 58px !important; }
   .farolillo { width: 40px !important; }
   html.skin .producto--temporada .producto__foto::after { top: 12px; right: -52px; font-size: .6rem; }
 }
@@ -1428,7 +1443,15 @@ html.deco-quieta .deco-cruces *, html.deco-quieta .deco-reyes * { animation-play
 .cupon__trozo:nth-child(24)::before, .cupon__trozo:nth-child(24)::after { animation-name: cupon-corte-24; }
 /* Fundido de la línea al terminar (se recompone mientras no se ve) */
 .cupon__linea { animation: cupon-fundido 28s linear infinite; }
-@keyframes cupon-fundido { 0%, 47% { opacity: 1; } 50.5%, 53% { opacity: 0; } 57%, 100% { opacity: 1; } }
+/* Al acabar el corte (44 %), el trozo recortado cae girando como un papel y se desvanece; luego vuelve la línea entera */
+@keyframes cupon-fundido {
+  0%, 44% { transform: none; opacity: 1; animation-timing-function: ease-in; }
+  46.5% { transform: translate(-10px, 34px) rotate(-5deg); opacity: 1; }
+  49% { transform: translate(8px, 90px) rotate(7deg); opacity: .7; }
+  51% { transform: translate(-4px, 150px) rotate(-3deg); opacity: 0; }
+  53% { transform: none; opacity: 0; }
+  57%, 100% { transform: none; opacity: 1; }
+}
 
 .cupon__pista { position: absolute; left: 0; width: 100%; top: 0; height: 100%; animation: cupon-pista 28s linear infinite; }
 @keyframes cupon-pista {
@@ -1586,4 +1609,55 @@ html.deco-quieta .deco-carrito * { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) {
   .deco-carrito .cruce { display: none !important; }
   html.skin.tema--black-friday .portada__texto::before { animation: none !important; }
+}
+
+/* ---------- Rebajas: el sello gigante «REBAJAS». Capa dentro de la foto (z 1: por detrás de la tarjeta del precio). Cada 20 s
+   cae de golpe (1,2 s antes ya se ve venir), golpea (se aplasta un poco), la decoración da una sacudida corta (solo las
+   capas de decoración, nunca el texto), salpica gotitas de tinta y se queda estampado ~5 s antes de desvanecerse.
+   Solo transform y opacity; quieto con deco-quieta; con «reducir movimiento» no sale ---------- */
+.deco-sello { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
+html.skin.tema--rebajas .deco .sello-gigante { display: block; }
+.sello-gigante { position: absolute; right: 6%; top: 30%; width: 200px; aspect-ratio: 1; animation: sello-cae 20s infinite; }
+.sello-gigante svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+@keyframes sello-cae {
+  0%, 4% { transform: translateY(-70px) scale(1.8) rotate(-18deg); opacity: 0; animation-timing-function: ease-in; }
+  6% { transform: translateY(0) scale(1) rotate(-12deg); opacity: 1; }
+  6.6% { transform: scale(.93, .9) rotate(-12deg); opacity: 1; }
+  7.4% { transform: scale(1) rotate(-12deg); opacity: 1; }
+  30% { transform: scale(1) rotate(-12deg); opacity: .95; }
+  36%, 100% { transform: scale(1) rotate(-12deg); opacity: 0; }
+}
+.sello-gigante__tinta { opacity: .92; }
+.sello-gigante__aro { fill: none; stroke: #c42032; stroke-width: 9; stroke-dasharray: 46 3 18 2 30 4; }
+.sello-gigante__aro--fino { stroke-width: 3; stroke-dasharray: 8 3; }
+.sello-gigante__banda { fill: #c42032; }
+.sello-gigante__texto { fill: #fff; font: 900 34px var(--letra-titulo); letter-spacing: .02em; text-anchor: middle; }
+.sello-gigante__estrellas { fill: #c42032; }
+/* Textura de tinta: huecos donde el tampón no ha cargado bien */
+.sello-gigante__huecos circle { fill: rgb(255 255 255 / .38); }
+.sello-gota { fill: #c42032; transform-box: fill-box; transform-origin: center; animation: gota-tinta 20s infinite; }
+@keyframes gota-tinta { 0%, 5.9% { transform: scale(0); opacity: 0; } 6.4% { transform: scale(1.5); opacity: 1; } 9% { transform: scale(1); opacity: .9; } 30% { opacity: .85; transform: scale(1); } 36%, 100% { opacity: 0; transform: scale(1); } }
+/* La sacudida al golpear: solo las capas de decoración de la foto */
+html.skin.tema--rebajas .deco-sello, html.skin.tema--rebajas .deco-foto { animation: sacudida 20s infinite; }
+@keyframes sacudida { 0%, 6% { transform: none; } 6.4% { transform: translate(3px, 2px); } 6.9% { transform: translate(-3px, -1px); } 7.4% { transform: translate(2px, 1px); } 7.9%, 100% { transform: none; } }
+@media (max-width: 680px) {
+  .sello-gigante { width: 132px; right: 5%; top: 12%; }
+  .sello-gota:nth-child(n+6) { display: none; }
+}
+html.deco-quieta .deco-sello, html.deco-quieta .deco-sello *, html.deco-quieta .deco-foto, html.deco-quieta .tendedero * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .deco-sello { display: none !important; }
+  html.skin.tema--rebajas .deco-foto { animation: none !important; }
+}
+/* Rebajas: el lienzo (lluvia de «%» y la ráfaga del corte) pasa por encima de la foto, para que la ráfaga se vea donde
+   acaba el corte; el texto sube un nivel para seguir por encima del lienzo. Los demás temas no cambian */
+html.skin.tema--rebajas .deco-fondo { z-index: 1; }
+html.skin.tema--rebajas .portada__texto { z-index: 2; }
+/* Tendedero por debajo de 800 px: 9 etiquetas de 78 px no caben (hacen falta ~84 px por etiqueta). Se dejan 4, repartidas
+   al 14, 38, 62 y 86 %, sin montarse ni salirse por los lados */
+@media (max-width: 799px) {
+  .tendedero__etiqueta { display: none; }
+  .tendedero__etiqueta--1, .tendedero__etiqueta--4, .tendedero__etiqueta--5, .tendedero__etiqueta--8 { display: block; }
+  .tendedero__etiqueta--1 { left: 14%; top: 19.6px; } .tendedero__etiqueta--4 { left: 38%; top: 28.8px; }
+  .tendedero__etiqueta--5 { left: 62%; top: 28.8px; } .tendedero__etiqueta--8 { left: 86%; top: 19.6px; }
 }
