@@ -519,7 +519,7 @@ h2.cartel { font-size: clamp(2rem, 1.4rem + 1.9vw, 3rem); }
   padding-block: 14px; font-size: .875rem; color: rgb(255 255 255 / .8);
 }
 .pie a { color: #fff; }
-@media (max-width: 900px) {
+@media (max-width: 1100px) { /* las redes del pie no caben en 4 columnas por debajo de ~1100 px */
   .pie__rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pie__marca { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
   .pie__frase { margin-top: 0; }
