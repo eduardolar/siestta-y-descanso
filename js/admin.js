@@ -18,7 +18,7 @@
   var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
   var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261123-34';
+  var V = '20261123-39';
 
   var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
   var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
@@ -51,9 +51,20 @@
     setTimeout(function () { zona.textContent = texto; }, 50);
   }
 
+  // finToast: lo que hay que hacer cuando este aviso se vaya (caduque, se cierre o lo sustituya otro), salvo si se
+  // pulsa su botón. Así, por ejemplo, la foto quitada solo se borra cuando ya no se puede deshacer
+  var finToast = null;
+  var accion2Toast = null;
+  function acabarToast() {
+    var f = finToast;
+    finToast = null;
+    if (f) f();
+  }
   function esconderToast() {
     clearTimeout(temporizadorToast);
     accionToast = null;
+    accion2Toast = null;
+    acabarToast();
     if (conPopover) { if (toast.matches(':popover-open')) toast.hidePopover(); }
     else toast.hidden = true;
   }
@@ -64,9 +75,31 @@
   document.addEventListener('input', function () {
     if (toast.classList.contains('toast--error') && !accionToast) esconderToast();
   });
+  // Aviso centrado (en la parte media-baja; si el campo con el foco está abajo, en la de arriba). Los de éxito se van
+  // solos a los 2,5 s; con acción («Deshacer», «Reintentar») duran 10 s; los errores se quedan hasta cerrarlos.
+  // Si se guardan varias cosas seguidas, el mismo aviso pasa a decir «Cambios guardados»
+  var ultimoExito = { texto: '', hasta: 0 };
   function avisar(texto, opciones) {
     opciones = opciones || {};
+    // Un «Deshacer» a la vista no lo pisa un «guardado» normal: se queda con su texto y su botón (el guardado ya lo
+    // dice el indicador de la cabecera). Un error con «Reintentar» sí lo sustituye un guardado que salió bien después
+    if (!opciones.error && !opciones.accion && !opciones.propio && accionToast && !toast.classList.contains('toast--error')) return;
+    // Mientras quede algo sin guardar por un fallo, ningún «guardado» de otra cosa lo tapa: sale (o se actualiza)
+    // el aviso de error con lo que falta y «Reintentar»
+    if (!opciones.error && !opciones.accion && pendientes() > 0) { avisarPendientes(); return; }
+    // Un aviso propio («Foto recuperada», «Foto subida») tampoco lo cambia el «guardado» genérico que llega detrás
+    if (!opciones.error && !opciones.accion && !opciones.propio && ultimoExito.propio && Date.now() < ultimoExito.hasta) return;
     clearTimeout(temporizadorToast);
+    clearTimeout(temporizadorSalida);
+    toast.classList.remove('toast--saliendo');
+    acabarToast(); // el aviso anterior se va (lo sustituye este)
+    finToast = opciones.alAcabar || null;
+    texto = String(texto).replace(/^✓\s*/, '');
+    var exito = !opciones.error && !opciones.accion;
+    if (exito && !opciones.propio && Date.now() < ultimoExito.hasta && ultimoExito.texto !== texto) texto = 'Cambios guardados';
+    ultimoExito = exito ? { texto: texto, hasta: Date.now() + 2500, propio: !!opciones.propio } : { texto: '', hasta: 0 };
+    var foco = document.activeElement && document.activeElement !== document.body ? document.activeElement.getBoundingClientRect() : null;
+    toast.classList.toggle('toast--arriba', !!foco && (foco.top + foco.bottom) / 2 > window.innerHeight / 2);
     $('toast-texto').textContent = texto;
     toast.classList.toggle('toast--error', !!opciones.error);
     accionToast = opciones.accion || null;
@@ -74,6 +107,9 @@
     $('toast-cerrar').hidden = !opciones.error;
     $('toast-accion').hidden = !accionToast;
     if (accionToast) $('toast-accion').textContent = accionToast.texto;
+    accion2Toast = opciones.accion2 || null;
+    $('toast-accion2').hidden = !accion2Toast;
+    if (accion2Toast) $('toast-accion2').textContent = accion2Toast.texto;
     if (conPopover) {
       if (toast.matches(':popover-open')) toast.hidePopover();
       toast.showPopover(); // al volver a abrirlo queda encima de todo, también de los diálogos
@@ -81,11 +117,23 @@
       toast.hidden = false;
     }
     anunciar(texto, !!opciones.error);
-    if (!opciones.error) temporizadorToast = setTimeout(esconderToast, opciones.duracion || (accionToast ? 10000 : 3000));
+    if (!opciones.error) temporizadorToast = setTimeout(salirToast, opciones.duracion || (accionToast ? 10000 : 2500));
+  }
+  // Se va con un fundido (sin animación con «reducir movimiento»: el CSS no la pone)
+  var temporizadorSalida;
+  function salirToast() {
+    toast.classList.add('toast--saliendo');
+    temporizadorSalida = setTimeout(function () { toast.classList.remove('toast--saliendo'); esconderToast(); }, 300);
   }
   $('toast-cerrar').addEventListener('click', esconderToast);
   $('toast-accion').addEventListener('click', function () {
     var a = accionToast;
+    finToast = null; // se ha pulsado su botón (p. ej. «Deshacer»): lo de «al acabar» ya no toca
+    esconderToast();
+    if (a) a.hacer();
+  });
+  $('toast-accion2').addEventListener('click', function () {
+    var a = accion2Toast;
     esconderToast();
     if (a) a.hacer();
   });
@@ -93,19 +141,31 @@
   // ---------- Guardar ----------
 
   var temporizadorGuardado;
+  function ponerGuardando() {
+    var g = $('guardado');
+    g.textContent = 'Guardando…';
+    g.dataset.estado = 'pendiente';
+    delete g.dataset.corto;
+  }
   // El pie de la ficha enseña el mismo estado que la cabecera (un solo indicador en todo el panel)
   new MutationObserver(function () {
     var g = $('guardado'), n = $('ficha-nota');
     n.textContent = g.textContent || '✓ Guardado';
     if (g.dataset.estado) n.dataset.estado = g.dataset.estado; else delete n.dataset.estado;
+    if (g.dataset.corto) n.dataset.corto = g.dataset.corto; else delete n.dataset.corto;
   }).observe($('guardado'), { childList: true, characterData: true, subtree: true, attributes: true });
   // El estado se queda siempre a la vista en la cabecera: «✓ Guardado», «Guardando…» o «Sin guardar: …»
   function avisarGuardado(ok, texto) {
     var g = $('guardado');
     // Aunque esto se haya guardado, si queda algún dato en rojo sin guardar, se sigue diciendo
     if (ok && texto !== 'Todo al día' && primerError()) { ok = false; texto = ''; }
+    // …y si queda algún cambio que no se pudo guardar (sin conexión), también
+    var n = pendientes();
+    if (ok && texto !== 'Todo al día' && n) { ok = false; texto = textoCambios(n) + ' ' + (n === 1 ? 'pendiente' : 'pendientes'); }
     g.textContent = ok ? (texto || '✓ Guardado') : 'Sin guardar: ' + (texto ? texto.charAt(0).toLowerCase() + texto.slice(1) : 'revisa los avisos');
     g.dataset.estado = ok ? 'ok' : 'error';
+    // En el móvil, si no cabe, se ve la versión corta: «Sin guardar (N)»
+    if (ok) delete g.dataset.corto; else g.dataset.corto = n ? 'Sin guardar (' + n + ')' : 'Sin guardar';
     clearTimeout(temporizadorGuardado);
   }
 
@@ -134,15 +194,91 @@
 
   // Tras un fallo: el aviso claro y, si hace falta, se repinta con lo recargado
   var fallos = 0; // cuántos guardados han fallado (para no cerrar sesión con algo sin guardar)
-  function informarFallo(r) {
+  // conReintento: el aviso de error trae «Reintentar», que vuelve a enviar TODO lo pendiente
+  function informarFallo(r, conReintento) {
     fallos++;
-    avisarGuardado(false);
+    var n = pendientes();
+    avisarGuardado(false, n ? textoCambios(n) + ' ' + (n === 1 ? 'pendiente' : 'pendientes') : '');
     if (r.motivo === 'conflicto') { avisar(MENSAJE_CONFLICTO, { error: true }); trasRecargar(true); }
     else if (r.motivo === 'falta') { avisar(MENSAJE_FALTA, { error: true }); trasRecargar(true); }
-    else avisar(textoError(r.error), { error: true });
+    else avisar(textoError(r.error), conReintento ? botonesPendientes() : { error: true });
+  }
+  function botonesPendientes() {
+    var q = fotoQuitadaPendiente();
+    return {
+      error: true,
+      accion: { texto: 'Reintentar', hacer: reintentarTodo },
+      accion2: q ? { texto: 'Recuperar la foto', hacer: function () { recuperarFotoPendiente(q); } } : null
+    };
   }
 
-  function guardarCache() { window.guardarContenido(contenido); }
+  // ---------- Cambios pendientes (su guardado falló por la conexión) ----------
+  // Lo escrito se queda en el estado local (y en pantalla) y se envía con el siguiente guardado:
+  // - ajustes: la lista de cambios que fallaron; se guardan enteros, así que cualquier guardado posterior los lleva
+  //   (y si se recargan del servidor, se vuelven a aplicar encima)
+  // - productos: id → campos que fallaron; el siguiente guardado de ese producto los lleva
+  // Hasta que no quede ninguno, la cabecera dice «Sin guardar: N cambios pendientes»
+  var pendAjustes = [];
+  var pendProd = {};
+  var fotosServidor = {}; // id → fotos del producto tal como están en el servidor (lo último confirmado)
+  function anotarServidor(productos) {
+    fotosServidor = {};
+    productos.forEach(function (p) { fotosServidor[p.id] = (p.fotos || []).slice(); });
+  }
+  var ajustesGuardados = null; // los ajustes tal como están en el servidor (para contar qué falta)
+  var NADA = function () {};
+  function contarDiferencias(a, b) {
+    if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+      var n = 0, claves = {};
+      Object.keys(a).concat(Object.keys(b)).forEach(function (k) { claves[k] = 1; });
+      Object.keys(claves).forEach(function (k) { n += contarDiferencias(a[k], b[k]); });
+      return n;
+    }
+    return JSON.stringify(a) === JSON.stringify(b) ? 0 : 1;
+  }
+  function pendientes() {
+    var n = 0;
+    if (!pendProd) return 0; // aún sin arrancar
+    if (pendAjustes.length) n += Math.max(1, ajustesGuardados ? contarDiferencias(D.ajustesDe(contenido), ajustesGuardados) : 1);
+    Object.keys(pendProd).forEach(function (id) { n += Object.keys(pendProd[id]).length; });
+    return n;
+  }
+  function textoCambios(n) { return n === 1 ? '1 cambio' : n + ' cambios'; }
+  function textoSinGuardar(n) { return n === 1 ? 'hay 1 cambio sin guardar' : 'hay ' + n + ' cambios sin guardar'; }
+  function avisarPendientes() {
+    var t = textoSinGuardar(pendientes());
+    avisar(t.charAt(0).toUpperCase() + t.slice(1) + '. Revisa internet y pulsa «Reintentar».', botonesPendientes());
+  }
+  // Pone lo pendiente encima de un contenido que llega del servidor (c, ya normalizado); devuelve el resultado
+  function conPendientes(c) {
+    if (!pendAjustes.length && !Object.keys(pendProd).length) return c;
+    var x = copiar(c);
+    x.productos.forEach(function (p) { if (pendProd[p.id]) Object.assign(p, copiar(pendProd[p.id])); });
+    pendAjustes.forEach(function (f) { f(x); });
+    return C.normalizar(x);
+  }
+  // «Reintentar»: vuelve a enviar todo lo pendiente (los ajustes y cada producto)
+  function reintentarTodo() {
+    var envios = [];
+    if (pendAjustes.length) envios.push(guardarAjustes(NADA));
+    Object.keys(pendProd).forEach(function (id) { envios.push(guardarCampos(id, {})); });
+    return Promise.all(envios).then(function (rs) {
+      var ok = rs.every(function (r) { return r.ok; });
+      if (ok && !pendientes()) {
+        if (ficha.open) $('ficha-error').textContent = '';
+        avisarGuardado(true);
+        avisar('Cambios guardados', { propio: true });
+      }
+      return { ok: ok };
+    });
+  }
+  // Con algo pendiente, salir de la página lo avisa (el navegador pregunta)
+  window.addEventListener('beforeunload', function (e) {
+    if (pendientes() > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // Lo que ve la web en este navegador: solo lo guardado (con cambios pendientes, se espera a que se guarden)
+  function guardarCache() { if (!pendientes()) window.guardarContenido(contenido); }
 
   // Pone (o quita, con fila null) un producto con lo que devuelve la base de datos
   function ponerFila(fila, ref) {
@@ -152,16 +288,21 @@
     lista.forEach(function (p, n) { if (p.id === id) i = n; });
     if (fila) {
       var p = D.deFila(fila);
+      fotosServidor[id] = (p.fotos || []).slice();
+      if (pendProd[id]) Object.assign(p, copiar(pendProd[id]));
       if (i === -1) lista.unshift(p); else lista[i] = p;
       meta.productos[id] = fila.actualizado_en;
     } else {
       if (i !== -1) lista.splice(i, 1);
       delete meta.productos[id];
+      delete pendProd[id];
+      delete fotosServidor[id];
     }
     var c = copiar(contenido);
     c.productos = lista;
     contenido = C.normalizar(c);
     guardarCache();
+    revisarEsperando();
   }
 
   function ponerAjustes(fila) {
@@ -169,8 +310,15 @@
     c.version = C.VERSION;
     c.productos = contenido.productos;
     contenido = C.normalizar(c);
+    ajustesGuardados = D.ajustesDe(contenido);
+    if (pendAjustes.length) {
+      var x = copiar(contenido);
+      pendAjustes.forEach(function (f) { f(x); });
+      contenido = C.normalizar(x);
+    }
     meta.ajustes = fila.actualizado_en;
     guardarCache();
+    revisarEsperando();
   }
 
   // Trae del servidor un producto (o nota que ya no está). Resuelve true si sigue existiendo
@@ -188,18 +336,27 @@
   // Guarda unos campos (nombres de contenido.js) de un producto, solo si nadie lo ha cambiado.
   // Resuelve { ok: true } o { ok: false, motivo: 'conflicto' | 'falta' | 'error', error }
   function guardarCampos(ref, campos) {
-    $('guardado').textContent = 'Guardando…';
-    $('guardado').dataset.estado = 'pendiente';
+    ponerGuardando();
     return enCola(function () {
-      if (!meta.productos[ref]) return { ok: false, motivo: 'falta' };
+      if (!meta.productos[ref]) { delete pendProd[ref]; return { ok: false, motivo: 'falta' }; }
+      // Lo que quedó pendiente de este producto va con este guardado
+      var todo = Object.assign({}, pendProd[ref] || {}, campos);
+      if (!Object.keys(todo).length) return { ok: true };
       return S.conSesion(function (tk) {
-        return D.cambiarProducto(ref, D.aFila(campos, Object.keys(campos)), meta.productos[ref], tk);
+        return D.cambiarProducto(ref, D.aFila(todo, Object.keys(todo)), meta.productos[ref], tk);
       }).then(function (fila) {
-        if (fila) { ponerFila(fila); return { ok: true }; }
+        if (fila) { delete pendProd[ref]; ponerFila(fila); return { ok: true }; }
         return recargarProducto(ref).then(function (sigue) { return { ok: false, motivo: sigue ? 'conflicto' : 'falta' }; });
-      }, function (e) { return { ok: false, motivo: 'error', error: e }; });
+      }, function (e) {
+        // Sin conexión: se queda pendiente y en el estado local (la lista y la ficha lo siguen enseñando)
+        pendProd[ref] = todo;
+        var c = copiar(contenido);
+        c.productos.forEach(function (p) { if (p.id === ref) Object.assign(p, copiar(todo)); });
+        contenido = C.normalizar(c);
+        return { ok: false, motivo: 'error', error: e };
+      });
     }).then(function (r) {
-      if (r.ok) avisarGuardado(true); else informarFallo(r);
+      if (r.ok) avisarGuardado(true); else informarFallo(r, true);
       return r;
     });
   }
@@ -207,8 +364,7 @@
   // Cambia los ajustes (tienda, portada, opiniones…): cambio(c) toca solo su parte de una copia
   // del contenido; se envía entero (datos), solo si nadie lo ha cambiado desde que se leyó
   function guardarAjustes(cambio) {
-    $('guardado').textContent = 'Guardando…';
-    $('guardado').dataset.estado = 'pendiente';
+    ponerGuardando();
     // Si otra persona ha cambiado los ajustes entretanto, se recargan y se vuelve a aplicar SOLO este
     // cambio encima (lo que ella cambió se respeta); se avisa
     function intento(veces) {
@@ -216,14 +372,19 @@
       if (cambio(copia) === false) return { ok: false, motivo: 'falta' };
       var datos = D.ajustesDe(copia);
       return S.conSesion(function (tk) { return D.cambiarAjustes(datos, meta.ajustes, tk); }).then(function (fila) {
-        if (fila) { ponerAjustes(fila); return { ok: true, reintento: veces > 0 }; }
+        // La copia salía del estado local, que ya lleva lo pendiente: con este guardado queda todo guardado
+        if (fila) { pendAjustes = []; ponerAjustes(fila); return { ok: true, reintento: veces > 0 }; }
         return recargarAjustes().then(function () {
           return veces < 2 ? intento(veces + 1) : { ok: false, motivo: 'conflicto' };
         });
-      }, function (e) { return { ok: false, motivo: 'error', error: e }; });
+      }, function (e) {
+        // Sin conexión: el cambio se queda en el estado local y pendiente (lo lleva el siguiente guardado de ajustes)
+        if (cambio !== NADA) { pendAjustes.push(cambio); contenido = C.normalizar(copia); }
+        return { ok: false, motivo: 'error', error: e };
+      });
     }
     return enCola(function () { return intento(0); }).then(function (r) {
-      if (r.ok) avisarGuardado(true); else informarFallo(r);
+      if (r.ok) avisarGuardado(true); else informarFallo(r, true);
       pintarEstados();
       if (r.reintento) {
         trasRecargar(false);
@@ -265,21 +426,75 @@
   }
 
   // La foto quitada se borra del bucket pasado el «Deshacer» (y solo si nadie la usa ya)
-  var porBorrar = {};
+  // En uso: aquí (también lo pendiente de guardar) o en el servidor (lo último confirmado). Mientras el servidor
+  // siga apuntando a una foto (porque el guardado sin ella está pendiente), el archivo no se borra
   function enUso(ruta) {
     if (borrador && borrador.fotos.indexOf(ruta) !== -1) return true;
     if (contenido.portada.foto === ruta || contenido.anuncio.foto === ruta) return true;
-    return contenido.productos.some(function (p) { return p.fotos.indexOf(ruta) !== -1; });
+    if (contenido.productos.some(function (p) { return p.fotos.indexOf(ruta) !== -1; })) return true;
+    return enServidor(ruta);
   }
-  function borrarLuego(ruta) {
-    if (!C.esRutaAlmacen(ruta)) return;
-    clearTimeout(porBorrar[ruta]);
-    porBorrar[ruta] = setTimeout(function () {
-      delete porBorrar[ruta];
-      if (!enUso(ruta)) borrarDelBucket([ruta]);
-    }, 6500);
+  function enServidor(ruta) {
+    if (ajustesGuardados && JSON.stringify(ajustesGuardados).indexOf(JSON.stringify(ruta)) !== -1) return true;
+    return Object.keys(fotosServidor).some(function (id) { return fotosServidor[id].indexOf(ruta) !== -1; });
   }
-  function noBorrar(ruta) { clearTimeout(porBorrar[ruta]); delete porBorrar[ruta]; }
+  // Fotos que esperan a que el servidor deje de usarlas: se borran tras el siguiente guardado confirmado
+  var esperandoBorrar = {};
+  function borrarCuandoLibre(ruta) {
+    if (!ruta || !C.esRutaAlmacen(ruta)) return;
+    if (enUso(ruta)) { esperandoBorrar[ruta] = true; return; }
+    delete esperandoBorrar[ruta];
+    borrarDelBucket([ruta]);
+  }
+  function revisarEsperando() {
+    Object.keys(esperandoBorrar).forEach(function (ruta) {
+      if (!enUso(ruta)) { delete esperandoBorrar[ruta]; borrarDelBucket([ruta]); }
+    });
+  }
+  function noBorrar(ruta) { delete esperandoBorrar[ruta]; delete quitadas[ruta]; }
+
+  // Fotos quitadas de un producto (ruta → { id, i }): si su guardado queda pendiente, el aviso de error deja
+  // recuperarlas («Recuperar la foto»)
+  var quitadas = {};
+  function fotoQuitadaPendiente() {
+    var rutas = Object.keys(quitadas).reverse(); // la última quitada primero
+    for (var k = 0; k < rutas.length; k++) {
+      var q = quitadas[rutas[k]], pend = pendProd[q.id];
+      if (pend && pend.fotos && pend.fotos.indexOf(rutas[k]) === -1 && (fotosServidor[q.id] || []).indexOf(rutas[k]) !== -1) {
+        return { ruta: rutas[k], id: q.id, i: q.i };
+      }
+    }
+    return null;
+  }
+  function meterFoto(lista, ruta, i) {
+    var l = lista.slice();
+    if (l.indexOf(ruta) === -1) l.splice(Math.min(i, l.length), 0, ruta);
+    return l;
+  }
+  // La vuelve a poner (en lo pendiente, en el estado local y en la ficha si está abierta) y retira ese pendiente
+  // si con ella el producto queda como en el servidor
+  function recuperarFotoPendiente(q) {
+    noBorrar(q.ruta);
+    var pend = pendProd[q.id];
+    if (pend && pend.fotos) {
+      pend.fotos = meterFoto(pend.fotos, q.ruta, q.i);
+      if (JSON.stringify(pend.fotos) === JSON.stringify(fotosServidor[q.id] || [])) delete pend.fotos;
+      if (!Object.keys(pend).length) delete pendProd[q.id];
+    }
+    var c = copiar(contenido);
+    c.productos.forEach(function (p) { if (p.id === q.id) p.fotos = meterFoto(p.fotos, q.ruta, q.i); });
+    contenido = C.normalizar(c);
+    if (borrador && borrador.id === q.id && !esNuevo) {
+      borrador.fotos = meterFoto(borrador.fotos, q.ruta, q.i);
+      fotoVista = borrador.fotos.indexOf(q.ruta);
+      if (!pendProd[q.id]) $('ficha-error').textContent = '';
+      pintarFotos(true);
+      pintarPrevia();
+    }
+    pintarLista();
+    avisarGuardado(true);
+    avisar('Foto recuperada', { propio: true });
+  }
 
   function errorCampo(id, texto) {
     var e = $(id + '-error');
@@ -1042,7 +1257,13 @@
   // pestaña haya cambiado en ese producto (fotos, precio…). El estado (reservado/vendido) no se toca.
   var CAMPOS_FICHA = ['nombre', 'categoria', 'precio', 'precioAntes', 'etiqueta', 'fotos', 'descripcion', 'destacado',
     'descripcionLarga', 'medidas', 'colores', 'firmeza', 'aMedida', 'plazo', 'enTemporada'];
-  var alAbrir = null;  // el producto tal como estaba al abrir la ficha (o tras el último guardado de esta pestaña)
+  var alAbrir = null;
+  var TEXTO_GUARDADO = {
+    nombre: 'Nombre guardado', categoria: 'Categoría guardada', precio: 'Precio guardado', precioAntes: 'Precio de antes guardado',
+    etiqueta: 'Etiqueta guardada', fotos: 'Fotos guardadas', descripcion: 'Descripción guardada', destacado: 'Orden guardado',
+    descripcionLarga: 'Descripción larga guardada', medidas: 'Medidas guardadas', colores: 'Telas y colores guardados',
+    firmeza: 'Firmeza guardada', aMedida: '«A medida» guardado', plazo: 'Plazo guardado', enTemporada: 'Temporada del producto guardada'
+  };  // el producto tal como estaba al abrir la ficha (o tras el último guardado de esta pestaña)
 
   // El borrador tal como se guardaría (con los textos ya limpios, como los acepta la base de datos)
   function borradorLimpio() {
@@ -1071,6 +1292,7 @@
         var guardado = buscar(id);
         cambiados.forEach(function (k) { alAbrir[k] = guardado ? copiar(guardado[k]) : campos[k]; });
         $('ficha-error').textContent = '';
+        avisar(cambiados.length === 1 && TEXTO_GUARDADO[cambiados[0]] ? TEXTO_GUARDADO[cambiados[0]] : 'Cambios guardados');
       } else {
         $('ficha-error').textContent = r.motivo === 'conflicto' ? MENSAJE_CONFLICTO
           : r.motivo === 'falta' ? MENSAJE_FALTA : textoError(r.error);
@@ -1200,7 +1422,7 @@
         blobsNuevo = {};
         cerrando = false;
         cerrarFicha();
-        avisar('Añadido a la web: ' + nuevo.nombre);
+        avisar('Producto añadido: ' + nuevo.nombre, { propio: true });
       });
     }).catch(function (e) {
       cerrando = false;
@@ -1282,8 +1504,7 @@
     }).then(function (si) {
       if (!si) return;
       var eraDestacado = contenido.portada.destacado === id;
-      $('guardado').textContent = 'Guardando…';
-      $('guardado').dataset.estado = 'pendiente';
+      ponerGuardando();
       enCola(function () {
         if (!meta.productos[id]) return { ok: false, motivo: 'falta' };
         return S.conSesion(function (tk) { return D.borrarProducto(id, meta.productos[id], tk); }).then(function (fila) {
@@ -1384,6 +1605,7 @@
       fotoTrabajando = false;
       if (borrador !== ficha0) return;
       if (hechas) fotoVista = borrador.fotos.length - 1; // la recién añadida se ve en grande
+      if (!fallo && hechas) avisar(hechas === 1 ? 'Foto subida' : hechas + ' fotos subidas', { propio: true });
       $('foto-estado').textContent = fallo || ((hechas === 1 ? 'Foto lista ✓' : hechas + ' fotos listas ✓') +
         (sobran ? ' Solo caben ' + C.LIMITES.fotos + '.' : ''));
       pintarFotos();
@@ -1409,6 +1631,8 @@
         if (esNuevo) { blobsNuevo[ruta] = blob; hechas++; return; }
         return guardarEdicion().then(function (r) {
           if (r.ok) { hechas++; return; }
+          // Sin conexión: la foto se queda, pendiente de guardar con el producto («Reintentar»)
+          if (r.motivo === 'error') { fallo = 'La foto está subida, pero falta guardarla en el producto: pulsa «Reintentar».'; return; }
           // No se ha podido guardar en el producto: la foto no se queda
           var i = borrador.fotos.indexOf(ruta);
           if (i !== -1) borrador.fotos.splice(i, 1);
@@ -1474,11 +1698,12 @@
     } else {
       borrador.fotos.splice(i, 1);
       $('foto-estado').textContent = '';
-      // Primero se guarda el producto sin ella; el archivo se borra del bucket pasado el «Deshacer»
+      // Primero se guarda el producto sin ella; el archivo se borra del bucket cuando ya no se puede deshacer
+      // (al irse el aviso) y el servidor ya no la usa
+      if (!esNuevo) quitadas[foto] = { id: borrador.id, i: i };
       guardarEdicion();
       fotoVista = Math.max(0, Math.min(i, borrador.fotos.length - 1));
       pintarFotos(true);
-      borrarLuego(foto);
       deshacerQuitarFoto(borrador.id, esNuevo, foto, i);
     }
     pintarPrevia();
@@ -1487,6 +1712,8 @@
   // «Foto quitada · Deshacer»: la vuelve a poner en su sitio (en la ficha abierta o, si ya se cerró, en el producto)
   function deshacerQuitarFoto(id, eraNuevo, foto, i) {
     avisar('Foto quitada', {
+      // Al irse el aviso sin pulsar «Deshacer» (caduca o lo sustituye otro): ya se puede borrar el archivo
+      alAcabar: function () { borrarCuandoLibre(foto); },
       accion: {
         texto: 'Deshacer',
         hacer: function () {
@@ -1498,7 +1725,7 @@
             fotoVista = borrador.fotos.indexOf(foto); // se ve en grande la recuperada
             pintarFotos(true);
             pintarPrevia();
-            avisar('Foto recuperada');
+            avisar('Foto recuperada', { propio: true });
           } else if (!eraNuevo) {
             var x = buscar(id);
             if (!x || x.fotos.length >= C.LIMITES.fotos || x.fotos.indexOf(foto) !== -1) return;
@@ -1506,8 +1733,8 @@
             var fotos = x.fotos.slice();
             fotos.splice(Math.min(i, fotos.length), 0, foto);
             guardarCampos(id, { fotos: fotos }).then(function (r) {
-              if (r.ok) { avisar('Foto recuperada'); pintarLista(); }
-              else borrarLuego(foto);
+              if (r.ok) { avisar('Foto recuperada', { propio: true }); pintarLista(); }
+              else borrarCuandoLibre(foto);
             });
           }
         }
@@ -1542,12 +1769,11 @@
     return function () {
       if (t === null) pendientesForm++;
       clearTimeout(t);
-      $('guardado').textContent = 'Guardando…';
-      $('guardado').dataset.estado = 'pendiente';
+      ponerGuardando();
       t = setTimeout(ya, ms || 600);
     };
   }
-  function guardadoForm(promesa) { return promesa.then(function (r) { if (r.ok) avisar('Guardado'); return r; }); }
+  function guardadoForm(promesa, texto) { return promesa.then(function (r) { if (r.ok) avisar(texto || 'Cambio guardado'); return r; }); }
 
   // Corta un texto a N líneas en el propio campo y lo dice junto al campo
   function limitarLineas(campo, max, idError) {
@@ -1598,7 +1824,7 @@
       c.tienda.aviso.texto = texto;
       if (!texto && c.tienda.aviso.activo) { c.tienda.aviso.activo = false; apagado = true; }
     }).then(function (r) {
-      if (r.ok) avisar(apagado ? 'Aviso quitado: se ha quedado sin texto' : 'Guardado');
+      if (r.ok) avisar(apagado ? 'Aviso quitado: se ha quedado sin texto' : 'Texto del aviso guardado');
       pintarAviso('nunca');
     });
   });
@@ -1783,7 +2009,7 @@
     pintarPreviaHorario(r.tramos);
     pintarEstados();
     if (r.hayError) { avisarGuardado(false, 'Falta corregir el horario'); return; }
-    guardadoForm(guardarAjustes(function (c) { c.tienda.horario = r.tramos; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.horario = r.tramos; }), 'Horario guardado');
   });
   function tocarTramo(e) { var li = e.target.closest('.tramo'); if (li) li.dataset.tocado = '1'; }
   $('tramos').addEventListener('input', function (e) { tocarTramo(e); pintarPreviaHorario(leerTramos().tramos); guardarHorario(); });
@@ -1894,11 +2120,11 @@
   var guardarTitular = conRetraso(function () {
     var titular = $('titular').value.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
       .filter(Boolean).slice(0, C.LIMITES.lineasTitular).join('\n');
-    guardadoForm(guardarAjustes(function (c) { c.portada.titular = titular; }));
+    guardadoForm(guardarAjustes(function (c) { c.portada.titular = titular; }), 'Titular guardado');
   });
   var guardarEntradilla = conRetraso(function () {
     var entradilla = $('entradilla').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(guardarAjustes(function (c) { c.portada.entradilla = entradilla; }));
+    guardadoForm(guardarAjustes(function (c) { c.portada.entradilla = entradilla; }), 'Frase de la portada guardada');
   });
   $('titular').addEventListener('input', function () {
     limitarLineas($('titular'), C.LIMITES.lineasTitular, 'titular');
@@ -2022,7 +2248,12 @@
       return guardarAjustes(function (c) { c.portada.foto = ruta; }).then(function (r) {
         if (r.ok) {
           $('tienda-foto-estado').textContent = 'Foto lista ✓';
-          if (antes !== ruta && !enUso(antes)) borrarDelBucket([antes]);
+          avisar('Foto de la tienda subida', { propio: true });
+          if (antes !== ruta) borrarCuandoLibre(antes);
+        } else if (r.motivo === 'error') {
+          // Pendiente de guardar: la nueva se queda; la de antes se borra cuando el servidor deje de usarla
+          $('tienda-foto-estado').textContent = 'Foto subida, falta guardarla: pulsa «Reintentar».';
+          if (antes !== ruta) borrarCuandoLibre(antes);
         } else {
           $('tienda-foto-estado').textContent = 'No se ha guardado la foto. Vuelve a intentarlo.';
           if (!enUso(ruta)) borrarDelBucket([ruta]);
@@ -2154,14 +2385,14 @@
   function guardarTemporadaYa(aviso) {
     var t = leerTemporada();
     return guardarAjustes(function (c) { c.temporada = t; }).then(function (r) {
-      if (r.ok && aviso) avisar(t.tipo === 'ninguna' ? 'Temporada quitada' : 'Temporada: ' + C.TEMPORADAS[t.tipo].nombre);
+      if (r.ok && aviso) avisar(t.tipo === 'ninguna' ? 'Temporada quitada' : 'Temporada cambiada a ' + C.TEMPORADAS[t.tipo].nombre, { propio: true });
       // Si no se ha guardado, se vuelve a enseñar la que hay de verdad
       if (!r.ok) pintarTemporadaPanel(false);
       pintarRecuentoTemporada();
       return r;
     });
   }
-  var guardarTemporadaTexto = conRetraso(function () { guardadoForm(guardarTemporadaYa(false)); });
+  var guardarTemporadaTexto = conRetraso(function () { guardadoForm(guardarTemporadaYa(false), 'Texto de la temporada guardado'); });
   $('temporada-tipos').addEventListener('change', function () { pintarPreviaTemporada(); guardarTemporadaYa(true); });
   $('temporada-texto').addEventListener('input', function () { pintarPreviaTemporada(); guardarTemporadaTexto(); });
   function alCambiarHastaTemporada() {
@@ -2285,7 +2516,7 @@
       return x;
     });
   }
-  var guardarAnuncio = conRetraso(function () { guardadoForm(guardarAnuncioYa(null)); });
+  var guardarAnuncio = conRetraso(function () { guardadoForm(guardarAnuncioYa(null), 'Anuncio guardado'); });
   $('anuncio-activo').addEventListener('change', function () {
     var si = $('anuncio-activo').checked;
     if (si && !$('anuncio-titulo').value.trim()) {
@@ -2305,7 +2536,7 @@
       if (!$('anuncio-activo').checked) guardarAnuncio();
     });
     $(id).addEventListener('change', function () {
-      if ($('anuncio-activo').checked) guardadoForm(guardarAnuncioYa(null));
+      if ($('anuncio-activo').checked) guardadoForm(guardarAnuncioYa(null), 'Anuncio actualizado en la web');
     });
   });
   $('anuncio-hasta').addEventListener('change', function () { pintarPreviaAnuncio(); guardarAnuncio(); });
@@ -2321,7 +2552,11 @@
       return guardarAjustes(function (c) { c.anuncio.foto = ruta; }).then(function (r) {
         if (r.ok) {
           $('anuncio-foto-estado').textContent = 'Foto lista ✓';
-          if (antes && antes !== ruta && !enUso(antes)) borrarDelBucket([antes]);
+          avisar('Foto del anuncio subida', { propio: true });
+          if (antes && antes !== ruta) borrarCuandoLibre(antes);
+        } else if (r.motivo === 'error') {
+          $('anuncio-foto-estado').textContent = 'Foto subida, falta guardarla: pulsa «Reintentar».';
+          if (antes && antes !== ruta) borrarCuandoLibre(antes);
         } else {
           $('anuncio-foto-estado').textContent = 'No se ha guardado la foto. Vuelve a intentarlo.';
           if (!enUso(ruta)) borrarDelBucket([ruta]);
@@ -2339,7 +2574,7 @@
   $('anuncio-foto-quitar').addEventListener('click', function () {
     var antes = contenido.anuncio.foto;
     guardarAjustes(function (c) { c.anuncio.foto = ''; }).then(function (r) {
-      if (r.ok) { avisar('Foto quitada'); borrarLuego(antes); }
+      if (r.ok) { avisar('Foto quitada'); borrarCuandoLibre(antes); }
       $('anuncio-foto-estado').textContent = '';
       pintarFotoAnuncio();
       $('anuncio-foto-elegir').focus();
@@ -2371,17 +2606,19 @@
   var guardarTelefono = conRetraso(function () {
     var tel = validarTelefono();
     if (tel === null) { avisarGuardado(false, 'Falta corregir el teléfono'); return; }
-    guardadoForm(guardarAjustes(function (c) { c.tienda.telefono = tel; }));
+    // Con «WhatsApp es el mismo número», el WhatsApp va en el mismo guardado
+    var wa = $('whatsapp-mismo').checked ? C.normalizarWhatsapp(tel) : null;
+    guardadoForm(guardarAjustes(function (c) { c.tienda.telefono = tel; if (wa) c.tienda.whatsapp = wa; }), 'Teléfono guardado');
   });
   var guardarWhatsapp = conRetraso(function () {
     var wa = validarWhatsapp();
     if (wa === null) { if (!$('whatsapp-mismo').checked) avisarGuardado(false, 'Falta corregir el WhatsApp'); return; }
-    guardadoForm(guardarAjustes(function (c) { c.tienda.whatsapp = wa; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.whatsapp = wa; }), 'WhatsApp guardado');
   });
   var guardarDireccion = conRetraso(function () {
     var direccion = $('direccion').value.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
       .filter(Boolean).slice(0, C.LIMITES.lineasDireccion).join('\n');
-    guardadoForm(guardarAjustes(function (c) { c.tienda.direccion = direccion; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.direccion = direccion; }), 'Dirección guardada');
   });
   // «WhatsApp: usar el mismo número que el teléfono»: marcada, el WhatsApp sigue al teléfono (se guarda igual: 34XXXXXXXXX)
   function copiarTelefonoAWhatsapp() {
@@ -2401,8 +2638,13 @@
     if (this.checked) copiarTelefonoAWhatsapp(); else $('whatsapp').focus();
   });
   $('telefono').addEventListener('input', function () {
+    // El WhatsApp sigue al teléfono en pantalla; se guarda junto con el teléfono (un solo guardado)
+    if ($('whatsapp-mismo').checked) {
+      var wa = C.normalizarWhatsapp($('telefono').value);
+      if (wa) $('whatsapp').value = C.whatsappLegible(wa);
+      errorCampo('whatsapp', '');
+    }
     guardarTelefono();
-    if ($('whatsapp-mismo').checked) copiarTelefonoAWhatsapp();
   });
   $('whatsapp').addEventListener('input', guardarWhatsapp);
   // «Comprobar en Google Maps»: la búsqueda de la dirección escrita
@@ -2418,7 +2660,7 @@
   // Zona de entrega (opcional): vacía, la web dice «consulta zona»
   var guardarZona = conRetraso(function () {
     var zona = $('zona-entrega').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(guardarAjustes(function (c) { c.tienda.zonaEntrega = zona; }));
+    guardadoForm(guardarAjustes(function (c) { c.tienda.zonaEntrega = zona; }), 'Zona de entrega guardada');
   });
   $('zona-entrega').addEventListener('input', guardarZona);
 
@@ -2559,7 +2801,7 @@
       return;
     }
     errorCampo('op-enlace', '');
-    guardadoForm(guardarAjustes(function (c) { c.opiniones.enlace = enlace; }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.enlace = enlace; }), 'Enlace de Google guardado');
   });
   $('op-enlace').addEventListener('input', function () { pintarEnlaceOpiniones(); guardarEnlaceOpiniones(); });
   $('op-nota').addEventListener('input', pintarPreviaOpiniones);
@@ -2575,7 +2817,7 @@
       return;
     }
     errorCampo('op-nota', '');
-    guardadoForm(guardarAjustes(function (c) { c.opiniones.nota = n; }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.nota = n; }), 'Nota guardada');
   });
   var guardarTotal = conRetraso(function () {
     var t = $('op-total').value.trim();
@@ -2585,11 +2827,11 @@
       return;
     }
     errorCampo('op-total', '');
-    guardadoForm(guardarAjustes(function (c) { c.opiniones.total = t === '' ? null : parseInt(t, 10); }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.total = t === '' ? null : parseInt(t, 10); }), 'Número de opiniones guardado');
   });
   var guardarLista = conRetraso(function () {
     var lista = leerOpiniones();
-    guardadoForm(guardarAjustes(function (c) { c.opiniones.lista = lista; }));
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.lista = lista; }), 'Opiniones guardadas');
   });
   $('op-nota').addEventListener('input', guardarNota);
   $('op-total').addEventListener('input', guardarTotal);
@@ -2646,7 +2888,7 @@
   });
   var guardarFinTexto = conRetraso(function () {
     var texto = $('fin-texto').value.replace(/\s+/g, ' ').trim();
-    guardadoForm(guardarAjustes(function (c) { c.financiacion.texto = texto; }));
+    guardadoForm(guardarAjustes(function (c) { c.financiacion.texto = texto; }), 'Condiciones guardadas');
   });
   $('fin-texto').addEventListener('input', guardarFinTexto);
 
@@ -2692,7 +2934,7 @@
       return;
     }
     errorCampo('desde', '');
-    guardadoForm(guardarAjustes(function (c) { c.desde = t; }));
+    guardadoForm(guardarAjustes(function (c) { c.desde = t; }), 'Año guardado');
   });
   $('desde').addEventListener('input', guardarDesde);
 
@@ -2753,6 +2995,7 @@
         ultimaRecarga = Date.now();
         var abierto = ficha.open && borrador && !esNuevo ? borrador.id : null;
         var lista = r.contenido.productos;
+        anotarServidor(lista); // antes de poner encima el producto de la ficha abierta
         if (abierto) {
           var mio = buscar(abierto);
           var i = -1;
@@ -2765,7 +3008,10 @@
         var c = r.contenido;
         c.productos = lista;
         contenido = C.normalizar(c);
+        ajustesGuardados = D.ajustesDe(contenido);
+        contenido = conPendientes(contenido); // lo que no se pudo guardar sigue encima
         meta = r.meta;
+        revisarEsperando();
         guardarCache();
         if (JSON.stringify(contenido) !== antes) trasRecargar(false);
       }, function () { /* sin conexión: se sigue con lo que hay */ });
@@ -3009,6 +3255,8 @@
       }
       contenido = r.contenido;
       meta = r.meta;
+      ajustesGuardados = D.ajustesDe(contenido);
+      anotarServidor(contenido.productos);
       ultimaRecarga = Date.now();
       listo = true;
       guardarCache();
@@ -3044,11 +3292,14 @@
       return enCola(function () {}).then(function () { return r; });
     }).then(function (r) {
       var mal = primerError();
-      if (fallos > antes || (r && r.ok === false) || pendientesForm > 0 || mal) {
+      if (fallos > antes || (r && r.ok === false) || pendientesForm > 0 || mal || pendientes() > 0) {
         $('salir').disabled = false;
         if (mal) {
           irA(mal);
           avisar('Falta corregir un dato en ' + dondeEsta(mal) + '. Corrígelo antes de cerrar sesión.', { error: true });
+        } else if (pendientes() > 0) {
+          avisar('No se puede cerrar sesión: ' + textoSinGuardar(pendientes()) + '. Revisa internet y pulsa «Reintentar».',
+            botonesPendientes());
         } else {
           avisar('No se ha podido guardar todo: revisa el aviso antes de cerrar sesión.', { error: true });
         }
