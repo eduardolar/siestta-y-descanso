@@ -37,7 +37,8 @@
   font-weight: 700; font-size: .88rem; line-height: 1.2; overflow-wrap: anywhere;
 }
 .guardado:empty { visibility: hidden; }
-.guardado[data-estado="ok"] { color: var(--tinta); }
+.guardado { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.guardado[data-estado="ok"] { color: var(--tinta); padding: 4px 10px; border-radius: 999px; background: var(--gris); }
 .guardado[data-estado="error"] { background: var(--rojo); color: #fff; padding: 4px 10px; border-radius: var(--radio); }
 .guardado[data-estado="pendiente"] { color: var(--tinta-suave); font-weight: 600; }
 
@@ -216,7 +217,8 @@ button.boton--peligro:hover { background: var(--rojo); }
 /* La etiqueta amarilla de la web, un poco más pequeña */
 .panel .item__precio { margin: 0; align-items: flex-start; }
 .panel .item__precio strong { font-size: 1.6rem; }
-.panel .item__precio.producto__precio--consultar { padding: 6px 9px; font-size: .85rem; }
+/* «Consultar»: misma etiqueta (forma y tamaño) que un precio, en gris suave y sin borde de botón */
+.panel .item__precio.producto__precio--consultar { justify-content: center; min-height: 2.75rem; padding: 6px 12px 7px; border: 0; background: var(--gris-2); color: var(--tinta); font: 800 1rem/1.2 var(--letra-titulo); }
 
 /* Acciones grandes, para el pulgar: Reservar (o Quitar reserva) / Vender arriba y Editar a todo el ancho */
 .item__acciones {
@@ -279,7 +281,8 @@ button.boton--peligro:hover { background: var(--rojo); }
   background: var(--blanco); border: 2px solid var(--borde-campo); border-radius: 6px;
 }
 .panel textarea { resize: vertical; }
-.panel input::placeholder, .panel textarea::placeholder { color: #776b62; }
+/* Ejemplos («Ej.: …») en un gris claramente más claro que lo escrito, para no confundirlos con un valor */
+.panel input::placeholder, .panel textarea::placeholder { color: #8a8380; font-style: italic; opacity: 1; }
 .panel input:hover, .panel textarea:hover { border-color: var(--tinta-suave); }
 .panel [aria-invalid="true"] { border-color: var(--rojo); box-shadow: 0 0 0 3px rgb(196 32 50 / .18); }
 .panel input:focus-visible, .panel textarea:focus-visible { outline: 3px solid var(--tinta); outline-offset: 1px; border-color: var(--tinta); }
@@ -586,8 +589,8 @@ button.boton--peligro:hover { background: var(--rojo); }
 .ficha__error:empty { display: none; }
 .ficha__error::before { content: "⚠ "; }
 .ficha__pie [hidden] { display: none; }
-.ficha__nota { flex: 1 1 0; min-width: 0; font-size: .88rem; font-weight: 600; color: var(--tinta-suave); }
-.ficha__nota::before { content: "✓ "; color: var(--rojo); }
+/* El pie de la ficha usa el mismo indicador que la cabecera (.guardado) */
+.ficha__nota { flex: 0 1 auto; min-width: 0; margin-right: auto; text-align: left; max-width: none; }
 .ficha__nota:not([hidden]) ~ .boton { flex: 0 0 auto; }
 /* Borrar: al final de los datos, discreto y apartado */
 .ficha__borrar { justify-self: start; color: var(--rojo-oscuro); }
@@ -672,7 +675,8 @@ button.boton--peligro:hover { background: var(--rojo); }
 .destacado__nombre { font-weight: 700; overflow-wrap: anywhere; }
 .destacado__precio { font-size: .9rem; color: var(--tinta-suave); }
 .destacado--sin-foto { cursor: default; }
-.destacado--sin-foto .destacado__caja { opacity: .55; border-style: dashed; }
+.destacado--sin-foto .destacado__caja { background: var(--gris); }
+.destacado--sin-foto .destacado__precio { color: var(--tinta-suave); }
 
 .tienda-foto { width: 100%; max-width: 360px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--gris-2); }
 
@@ -811,7 +815,8 @@ button.boton--peligro:hover { background: var(--rojo); }
 span.item__temporada { cursor: default; min-height: 0; }
 /* Para el pulgar: el botón entero mide 44 px de alto */
 button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; }
-.temporada-recuento { margin: 4px 0 0; font-weight: 700; }
+.temporada-recuento { margin: 4px 0 0; font-weight: 700; color: var(--rojo-oscuro); }
+.temporada-recuento:empty { display: none; }
 .temporada-previa .banda-temporada, .anuncio-previa .anuncio-destacado { border-radius: 6px; overflow: hidden; }
 .anuncio-previa .anuncio-destacado { padding: 0; }
 .anuncio-previa .envoltura { width: 100%; }
@@ -844,10 +849,10 @@ button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; 
 }
 .plegable__estado:empty { display: none; }
 .plegable__estado[data-tipo="activo"] { background: var(--tinta); color: #fff; }
-.plegable__estado[data-tipo="info"] { background: transparent; color: var(--tinta-suave); padding-inline: 0; }
-.plegable__estado[data-tipo="caducado"] { background: var(--blanco); color: var(--tinta-suave); border: 2px dashed var(--borde-campo); padding: 4px 8px; }
+.plegable__estado[data-tipo="info"] { background: var(--gris-2); color: var(--tinta); } /* neutros y apagados: el mismo gris */
+.plegable__estado[data-tipo="caducado"] { background: var(--gris-2); color: var(--tinta); }
 /* Aviso: fondo rosado, texto rojo oscuro y borde (con el icono ⚠ en el propio texto) */
-.plegable__estado[data-tipo="error"] { background: #fdecee; color: var(--rojo-oscuro); border: 2px solid var(--rojo); padding: 4px 8px; }
+.plegable__estado[data-tipo="error"] { background: #fdecee; color: var(--rojo-oscuro); box-shadow: inset 0 0 0 2px var(--rojo); } /* mismo tamaño que las demás */
 .interruptor--caja { padding: 0 12px; background: var(--gris); border-radius: 8px; }
 
 /* Campos de fecha y enlace, como los demás */
@@ -872,7 +877,7 @@ button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; 
 /* ---------- Horario: cada horario, una fila editable (días · horas · papelera) ---------- */
 .tramo {
   display: grid; gap: 8px 12px; align-items: center; padding: 10px 10px 10px 12px;
-  background: var(--gris); border-radius: 8px; border-left: 4px solid var(--tinta);
+  background: var(--gris); border-radius: 8px; border: 1px solid var(--linea);
   grid-template-columns: minmax(0, 1fr) 44px;
   grid-template-areas: "dias quitar" "horas horas" "error error" "aviso aviso";
 }
@@ -931,17 +936,20 @@ button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; 
 .panel .campo--linea input { width: 5.5rem; }
 .opinion {
   display: grid; gap: 8px; align-items: start; padding: 10px; background: var(--gris); border-radius: 8px;
-  border-left: 4px solid var(--tinta);
+  border: 1px solid var(--linea);
   grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "texto texto" "autor quitar";
 }
-.opinion__texto { grid-area: texto; }
-.opinion__autor { grid-area: autor; }
+.opinion__campo--texto { grid-area: texto; }
+.opinion__campo--autor { grid-area: autor; }
+.opinion__campo { display: grid; gap: 4px; min-width: 0; }
+.opinion__etiqueta { font-size: .85rem; font-weight: 700; color: var(--tinta); }
+.opinion__quitar { align-self: end; }
 .panel .opinion__texto { min-height: 4.6em; field-sizing: content; } /* crece con el texto, sin cortarlo */
 @media (min-width: 900px) {
   .opinion { grid-template-columns: minmax(0, 1fr) 12rem 44px; grid-template-areas: "texto autor quitar"; }
 }
 .confianza-rejilla { display: grid; gap: 0 16px; }
-@media (min-width: 900px) { .confianza-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+@media (min-width: 900px) { .confianza-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; } }
 /* Fotos de la ficha: con ratón la caja y «+» abren la galería (varias a la vez); en el móvil, la cámara */
 .solo-raton { display: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -1021,3 +1029,128 @@ button.item__temporada { min-height: 44px; padding: 4px 12px; font-size: .8rem; 
 .tramo__aviso { padding: 8px 10px; border-left: 4px solid var(--borde-campo); background: var(--blanco); font-size: .9rem; font-weight: 600; color: var(--tinta); }
 .tramo__aviso::before { content: "ⓘ "; }
 .tramo__aviso:empty { display: none; }
+
+/* ---------- Interruptor en la cabecera de la tarjeta (Anuncio, Aviso, Financiación): el mismo en todo el panel ---------- */
+.interruptor--cab { flex: none; min-height: 44px; gap: 10px; margin-left: auto; flex-wrap: nowrap; }
+.interruptor--cab .interruptor__estado { order: 1; flex: none; font-size: .88rem; font-weight: 700; color: var(--tinta-suave); white-space: nowrap; }
+.interruptor--cab input:checked ~ .interruptor__estado { color: var(--tinta); }
+.bloque__cab .plegable__estado { margin-left: auto; }
+.bloque__cab .plegable__estado + .interruptor--cab { margin-left: 0; }
+/* Con el interruptor en la cabecera, la píldora solo sale para avisos (caducado, revisar) */
+#anuncio-bloque .plegable__estado[data-tipo="apagado"], #anuncio-bloque .plegable__estado[data-tipo="activo"],
+#aviso-bloque .plegable__estado[data-tipo="apagado"], #aviso-bloque .plegable__estado[data-tipo="activo"] { display: none; }
+/* Apagado: se puede seguir preparando; la vista previa sale atenuada y una línea lo dice */
+.bloque--apagado .previa { opacity: .55; }
+.bloque__ayuda--apagado { font-weight: 600; }
+.bloque__ayuda--apagado[hidden] { display: none; }
+#fin-texto-campo[hidden], #fin-apagada-nota[hidden] { display: none; }
+
+/* Destacado: «Ninguno» como chip aparte, encima de la cuadrícula */
+.destacado-ninguno { margin: 4px 0 10px; }
+.destacado-ninguno__opcion { display: inline-block; }
+
+/* Temporada: en anchos medianos y en el móvil, «Hasta» va debajo del texto, a todo el ancho */
+@media (max-width: 899px) {
+  #temporada-bloque .fila-campos { flex-direction: column; }
+  #temporada-bloque .fila-campos > .campo { flex: none; max-width: none; width: 100%; }
+}
+
+/* Aviso: sugerencias de texto (no son filtros): etiqueta delante y un lápiz en cada una */
+.sugerencias { align-items: center; }
+.sugerencias__titulo { font-size: .9rem; font-weight: 700; color: var(--tinta-suave); }
+.sugerencia {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; cursor: pointer;
+  background: none; border: 0; color: var(--tinta); font: 600 .92rem var(--letra);
+  text-decoration: underline; text-decoration-color: var(--rojo); text-decoration-thickness: 2px; text-underline-offset: 4px;
+}
+.sugerencia .icono { width: 16px; height: 16px; color: var(--rojo); }
+.sugerencia:hover { color: var(--rojo-oscuro); }
+
+/* Horario: los días que ya están en otro horario, atenuados y sin poder marcarse */
+.dia--ocupado { cursor: not-allowed; }
+.dia--ocupado span[aria-hidden] { opacity: .35; text-decoration: line-through; }
+.rapido[hidden] { display: none; }
+
+/* WhatsApp siguiendo al teléfono */
+.campo--copiado input { background: var(--gris); color: var(--tinta-suave); }
+
+/* Opiniones: enlace de Google y vista previa */
+.op-enlace { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 14px; }
+.op-enlace .campo { flex: 1 1 18rem; }
+.op-enlace .enlace-ficha { margin-bottom: 26px; }
+.op-previa { display: grid; gap: 8px; padding: 16px; background: var(--gris); border-radius: var(--radio); border-top: 4px solid var(--rojo); }
+.op-previa__nota { font-weight: 700; }
+.op-previa__cifra { font: 900 1.4rem/1 var(--letra-titulo); }
+.op-previa__cita { margin: 0; padding: 12px 14px; background: var(--blanco); border-radius: var(--radio); font-weight: 500; }
+.op-previa__autor { font-size: .875rem; color: var(--tinta-suave); }
+@media (max-width: 520px) {
+  .interruptor--cab .interruptor__estado { font-size: .78rem; }
+  .guardado { font-size: .72rem; max-width: 30vw; padding: 3px 8px; }
+}
+
+/* Productos: buscador y categorías (compactos; solo con bastantes productos) */
+.lista-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.lista-filtros[hidden] { display: none; }
+.lista-filtros__buscar { flex: 1 1 14rem; max-width: 22rem; }
+.lista-filtros__cats { gap: 6px; }
+.filtro-cat {
+  min-height: 40px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+  border: 2px solid var(--linea); background: var(--blanco); color: var(--tinta); font: 700 .86rem var(--letra);
+}
+.filtro-cat:hover { border-color: var(--tinta); }
+.filtro-cat[aria-pressed="true"] { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+.filtro-cat:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+/* Ficha: ayudas de «Rebajado», firmeza y destacado */
+.rebajado-ayuda[hidden], #f-firmeza-nota[hidden], #f-portada-ayuda[hidden] { display: none; }
+.rebajado-ayuda { flex-basis: 100%; }
+.casilla--rebajado:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+/* Móvil estrecho: los días y las horas encogen para caber en la tarjeta (sin salirse por la derecha) */
+@media (max-width: 520px) {
+  .tramo .dias { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .tramo__horas, .tramo__abierto { min-width: 0; width: 100%; }
+  .tramo .turno { width: 100%; }
+  .tramo .hora { flex: 1 1 0; min-width: 0; }
+  .panel .tramo .hora input { width: 100%; min-width: 0; padding-inline: 6px; }
+}
+@media (max-width: 520px) {
+  /* La papelera baja a la última fila: así las horas tienen todo el ancho y se leen enteras */
+  .tramo { grid-template-areas: "dias dias" "horas horas" "error error" "aviso aviso" ". quitar"; }
+  .tramo__quitar { margin-top: -52px; }
+}
+.ficha__pie .ficha__nota { margin-left: 0; margin-right: auto; } /* a la izquierda del pie, como antes */
+
+/* Indicador al abrir: «Todo al día», en gris */
+.guardado[data-estado="neutro"] { color: var(--tinta-suave); font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--gris); }
+/* Cabeceras con interruptor: si no caben, el estado y el interruptor bajan bajo el título */
+.bloque__cab { flex-wrap: wrap; row-gap: 4px; }
+/* Ayuda plegable del horario */
+.ayuda-plegable summary { cursor: pointer; font-weight: 700; font-size: .92rem; color: var(--tinta); min-height: 36px; display: flex; align-items: center; }
+.ayuda-plegable p { margin-top: 4px; }
+/* Destacado: los que necesitan foto, plegados al final */
+.destacados__sin-foto { grid-column: 1 / -1; }
+.destacados__sin-foto > summary { cursor: pointer; font-weight: 700; font-size: .92rem; color: var(--tinta-suave); min-height: 40px; display: flex; align-items: center; }
+.destacados__sin-foto .destacados { margin-top: 6px; }
+/* WhatsApp oculto cuando es el mismo número */
+.campo[hidden] { display: none; }
+/* Productos: buscador y categorías en una sola fila (las categorías se desplazan de lado si no caben) */
+.lista-filtros { flex-wrap: nowrap; }
+.lista-filtros__buscar { flex: 0 1 12rem; min-width: 8rem; }
+.lista-filtros__cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; padding-bottom: 2px; }
+.lista-filtros__cats::-webkit-scrollbar { display: none; }
+.filtro-cat { flex: none; white-space: nowrap; }
+.filtro-cat[hidden] { display: none; }
+.lista-quitar-filtro { margin-top: 10px; }
+.lista-quitar-filtro[hidden] { display: none; }
+/* 360: títulos de tarjeta algo más pequeños y la cuenta del acordeón sin partirse */
+.mas-detalles__cuenta { white-space: nowrap; }
+@media (max-width: 520px) {
+  .bloque__titulo { font-size: 1.15rem; gap: 10px; }
+  .bloque__icono { width: 34px; height: 34px; }
+  .mas-detalles summary { font-size: .92rem; gap: 8px; padding: 0 10px; }
+}
+@media (max-width: 520px) {
+  .tramo__opciones { flex-direction: column; align-items: flex-start; }
+  /* Cabeceras: píldoras más pequeñas para que el título quepa a lo sumo en dos líneas */
+  .plegable__estado { font-size: .72rem; padding: 4px 8px; }
+  .plegable__cab { gap: 8px; padding-inline: 12px; }
+}

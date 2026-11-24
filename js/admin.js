@@ -18,7 +18,7 @@
   var meta = { productos: {}, ajustes: null };  // actualizado_en de lo que se leyó
   var listo = false;                             // el panel ya tiene los datos del servidor
   var vista = 'web';
-  var V = '20261123-32';
+  var V = '20261123-34';
 
   var MENSAJE_FALTA = 'Ese producto ya no está: lo ha borrado otra persona.';
   var MENSAJE_CONFLICTO = 'Lo ha cambiado otra persona; se ha recargado.';
@@ -93,12 +93,20 @@
   // ---------- Guardar ----------
 
   var temporizadorGuardado;
+  // El pie de la ficha enseña el mismo estado que la cabecera (un solo indicador en todo el panel)
+  new MutationObserver(function () {
+    var g = $('guardado'), n = $('ficha-nota');
+    n.textContent = g.textContent || '✓ Guardado';
+    if (g.dataset.estado) n.dataset.estado = g.dataset.estado; else delete n.dataset.estado;
+  }).observe($('guardado'), { childList: true, characterData: true, subtree: true, attributes: true });
+  // El estado se queda siempre a la vista en la cabecera: «✓ Guardado», «Guardando…» o «Sin guardar: …»
   function avisarGuardado(ok, texto) {
     var g = $('guardado');
-    g.textContent = texto || (ok ? 'Guardado ✓' : 'No se ha guardado');
+    // Aunque esto se haya guardado, si queda algún dato en rojo sin guardar, se sigue diciendo
+    if (ok && texto !== 'Todo al día' && primerError()) { ok = false; texto = ''; }
+    g.textContent = ok ? (texto || '✓ Guardado') : 'Sin guardar: ' + (texto ? texto.charAt(0).toLowerCase() + texto.slice(1) : 'revisa los avisos');
     g.dataset.estado = ok ? 'ok' : 'error';
     clearTimeout(temporizadorGuardado);
-    if (ok) temporizadorGuardado = setTimeout(function () { g.textContent = ''; delete g.dataset.estado; }, 4000);
   }
 
   function enCopia(c, id) {
@@ -338,7 +346,7 @@
       case 'textos-bloque':
         a = window.CONTENIDO_EJEMPLO.portada;
         return ($('titular').value.trim() && $('titular').value.trim() !== a.titular) || ($('entradilla').value.trim() && $('entradilla').value.trim() !== a.entradilla)
-          ? ['✓ Propios', 'info'] : ['Los de siempre', 'info'];
+          ? ['✓ Propios', 'activo'] : ['Los de siempre', 'apagado'];
       case 'aviso-bloque':
         return contenido.tienda.aviso.activo ? ['✓ En la web', 'activo'] : ['Apagado', 'apagado'];
       case 'horario-bloque':
@@ -537,6 +545,19 @@
     });
 
     var elegidos = vista === 'web' ? enWeb : vendidos;
+    // Buscador (sin tildes) y categoría: solo salen con bastantes productos
+    $('lista-filtros').hidden = contenido.productos.length < 10;
+    var conProductos = {};
+    (vista === 'web' ? enWeb : vendidos).forEach(function (p) { conProductos[p.categoria] = true; });
+    Array.prototype.forEach.call(document.querySelectorAll('.filtro-cat[data-cat]'), function (b) {
+      b.hidden = !!b.dataset.cat && !conProductos[b.dataset.cat];
+    });
+    if (filtroCategoria && !conProductos[filtroCategoria]) filtroCategoria = '';
+    var busca = $('lista-filtros').hidden ? '' : C.sinTildes($('lista-buscar').value.trim());
+    var cat = $('lista-filtros').hidden ? '' : filtroCategoria;
+    elegidos = elegidos.filter(function (p) {
+      return (!cat || p.categoria === cat) && (!busca || C.sinTildes(p.nombre).indexOf(busca) !== -1 || C.sinTildes(p.id) === busca);
+    });
     lista.textContent = '';
     elegidos.forEach(function (p) {
       var li = el('li', 'item item--' + p.estado);
@@ -578,9 +599,10 @@
     });
 
     vacia.hidden = elegidos.length > 0;
-    vacia.textContent = vista === 'web'
-      ? 'Aún no hay productos.'
-      : 'No hay productos vendidos.';
+    var filtrando = !!(busca || cat);
+    vacia.textContent = filtrando ? 'Ningún producto coincide.'
+      : vista === 'web' ? 'Aún no hay productos.' : 'No hay productos vendidos.';
+    $('lista-quitar-filtro').hidden = !(filtrando && !elegidos.length);
 
     if (enfoque) {
       var b = enfoque.id && lista.querySelector('[data-id="' + enfoque.id + '"][data-accion="' + enfoque.accion + '"]');
@@ -589,6 +611,22 @@
     pintarPortadaPanel();
   }
 
+  var filtroCategoria = '';
+  $('lista-quitar-filtro').addEventListener('click', function () {
+    $('lista-buscar').value = '';
+    filtroCategoria = '';
+    Array.prototype.forEach.call(document.querySelectorAll('.filtro-cat'), function (x) { x.setAttribute('aria-pressed', x.dataset.cat ? 'false' : 'true'); });
+    pintarLista();
+    $('lista-buscar').focus();
+  });
+  $('lista-buscar').addEventListener('input', function () { pintarLista(); });
+  document.querySelector('.lista-filtros__cats').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-cat]');
+    if (!b) return;
+    filtroCategoria = b.dataset.cat;
+    Array.prototype.forEach.call(document.querySelectorAll('.filtro-cat'), function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    pintarLista();
+  });
   document.querySelector('.vista').addEventListener('click', function (e) {
     var b = e.target.closest('[data-vista]');
     if (!b) return;
@@ -772,12 +810,22 @@
     var portada = $('f-portada');
     portada.disabled = !hay && !portada.checked;
     $('f-portada-nota').hidden = !portada.disabled;
+    pintarAyudaPortada();
     if (enfocar) {
       var destino = ol.querySelector('[aria-pressed="true"]') || ol.querySelector('[data-accion="anadir"]') || $('foto-caja');
       destino.focus();
     }
   }
 
+  // Bajo «Destacado en la portada», si está apagado: cuál está puesto ahora (y que activarlo lo sustituye)
+  function pintarAyudaPortada() {
+    var portada = $('f-portada'), ayuda = $('f-portada-ayuda');
+    var actual = buscar(contenido.portada.destacado);
+    ayuda.hidden = portada.checked || portada.disabled;
+    ayuda.textContent = actual && (!borrador || actual.id !== borrador.id)
+      ? 'Ahora está puesto: ' + actual.nombre + '. Si lo activas, lo sustituye.'
+      : 'Ahora no hay ninguno.';
+  }
   function iconoSprite(id) {
     var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     s.setAttribute('class', 'icono');
@@ -830,7 +878,15 @@
     borrador.firmeza = valorRadio('firmeza');
     borrador.aMedida = $('f-amedida').checked;
     borrador.plazo = $('f-plazo').value.replace(/\s+/g, ' ').trim();
-    $('f-firmeza-caja').hidden = borrador.categoria !== 'colchones';
+    var usaFirmeza = borrador.categoria === 'colchones' || borrador.categoria === 'camas';
+    $('f-firmeza-caja').hidden = !usaFirmeza;
+    $('f-firmeza-nota').hidden = usaFirmeza || !borrador.firmeza;
+    $('f-firmeza-nota').textContent = borrador.firmeza && !usaFirmeza
+      ? 'La firmeza («' + (C.FIRMEZAS[borrador.firmeza] || borrador.firmeza) + '») se guarda, pero solo sale en colchones y camas.' : '';
+    // 5. «Rebajado» necesita un precio de ahora
+    var sinPrecio = !$('f-precio').value.trim() || leerPrecio($('f-precio').value.trim()) === 0;
+    $('f-rebajado').disabled = sinPrecio && !$('f-rebajado').checked;
+    $('f-rebajado-ayuda').hidden = !$('f-rebajado').disabled;
     contar($('f-larga'), $('f-larga-cuenta'), C.LIMITES.descripcionLarga);
 
     var tp = $('f-precio').value.trim();
@@ -1391,6 +1447,7 @@
     }).then(function (r) {
       if (r.ok) avisar(si ? 'En la portada: ' + nombre : 'Quitado de la portada');
       if (borrador && borrador.id === id) $('f-portada').checked = contenido.portada.destacado === id;
+      pintarAyudaPortada();
       pintarPortadaPanel();
     });
   });
@@ -1513,20 +1570,18 @@
     var campo = $('aviso-texto');
     if (respetarFoco !== 'nunca' && (!respetarFoco || document.activeElement !== campo)) campo.value = a.texto;
     var texto = campo.value.trim();
-    var boton = $('aviso-boton');
-    boton.textContent = a.activo ? 'Quitar el aviso' : 'Poner el aviso en la web';
-    boton.classList.toggle('boton--noche', !a.activo);
-    boton.classList.toggle('boton--linea', a.activo);
-    var estado = $('aviso-estado');
-    estado.textContent = a.activo ? '✓ Se ve en la web' : (texto ? 'Aún no se ve en la web' : '');
-    estado.dataset.activo = a.activo ? 'si' : 'no';
+    $('aviso-activo').checked = a.activo;
+    $('aviso-activo-estado').textContent = a.activo ? '✓ Sí se ve' : 'No se ve';
+    $('aviso-apagado-nota').hidden = a.activo;
+    $('aviso-bloque').classList.toggle('bloque--apagado', !a.activo);
     $('aviso-previa-texto').textContent = texto || 'Escribe el texto del aviso';
     contar(campo, $('aviso-cuenta'), 120);
   }
-  $('aviso-boton').addEventListener('click', function () {
-    var activo = !contenido.tienda.aviso.activo;
+  $('aviso-activo').addEventListener('change', function () {
+    var activo = $('aviso-activo').checked;
     var texto = $('aviso-texto').value.trim();
     if (activo && !texto) {
+      $('aviso-activo').checked = false;
       errorCampo('aviso-texto', 'Escribe primero el texto del aviso.');
       $('aviso-texto').focus();
       return;
@@ -1552,7 +1607,7 @@
     pintarAviso('nunca');
     guardarAviso();
   });
-  document.querySelector('.rapidos').addEventListener('click', function (e) {
+  document.querySelector('.sugerencias').addEventListener('click', function (e) {
     var b = e.target.closest('[data-texto]');
     if (!b) return;
     var campo = $('aviso-texto');
@@ -1698,6 +1753,7 @@
       salida.push({ dias: C.componerDias(dias), horas: C.componerHoras(tramos) });
     });
     pintarAtajos();
+    marcarDiasOcupados();
     return { tramos: salida, hayError: hayError };
   }
 
@@ -1769,6 +1825,24 @@
     return bien ? C.componerHoras(t) : '10:00–13:30 y 17:00–20:30';
   }
   // «+ Sábados»… desactivado si ya hay una fila con exactamente esos días
+  // Un día solo puede estar en un horario: en las demás filas sale deshabilitado («Ya está en otro horario»)
+  function marcarDiasOcupados() {
+    var filas = Array.prototype.slice.call($('tramos').children);
+    var deQuien = {};
+    filas.forEach(function (li, i) {
+      li.querySelectorAll('.dia input').forEach(function (c) { if (c.checked) deQuien[c.value] = i; });
+    });
+    filas.forEach(function (li, i) {
+      li.querySelectorAll('.dia input').forEach(function (c) {
+        var ocupado = !c.checked && deQuien[c.value] !== undefined && deQuien[c.value] !== i;
+        c.disabled = ocupado;
+        c.setAttribute('aria-disabled', ocupado ? 'true' : 'false');
+        var l = c.closest('.dia');
+        if (ocupado) l.title = 'Ya está en otro horario'; else l.removeAttribute('title');
+        l.classList.toggle('dia--ocupado', ocupado);
+      });
+    });
+  }
   function pintarAtajos() {
     var filas = Array.prototype.map.call($('tramos').children, function (li) {
       return Array.prototype.filter.call(li.querySelectorAll('.dia input'), function (c) { return c.checked; })
@@ -1777,9 +1851,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-anadir-dias]'), function (b) {
       if (!b.dataset.anadirDias) return;
       var ya = filas.indexOf(C.leerDias(b.dataset.anadirDias).sort().join(',')) !== -1;
-      b.disabled = ya;
-      if (ya) { b.title = 'Ya está'; b.setAttribute('aria-describedby', 'atajo-ya'); }
-      else { b.removeAttribute('title'); b.removeAttribute('aria-describedby'); }
+      b.hidden = ya; // ya hay un horario con esos días: el atajo no sale
     });
   }
   function anadirTramo(textoDias) {
@@ -1841,17 +1913,25 @@
 
   function pintarPortadaPanel() {
     var caja = $('destacados');
+    var cajaNinguno = $('destacado-ninguno');
     var elegido = contenido.portada.destacado;
-    var conFoco = caja.contains(document.activeElement) ? document.activeElement.value : null;
+    var conFoco = caja.contains(document.activeElement) || cajaNinguno.contains(document.activeElement) ? document.activeElement.value : null;
     caja.textContent = '';
+    cajaNinguno.textContent = '';
     // Los que no tienen foto, al final, atenuados y sin poder elegirse (salvo que ya fuera el destacado)
     var enWeb = contenido.productos.filter(function (p) { return p.estado !== 'vendido'; });
     var conFoto = enWeb.filter(function (p) { return C.fotoPrincipal(p); });
     var sinFoto = enWeb.filter(function (p) { return !C.fotoPrincipal(p); });
     var opciones = [{ id: '', nombre: 'Ninguno: solo la foto de la tienda' }].concat(conFoto, sinFoto);
+    // Los que necesitan foto (no se pueden destacar), al final y plegados
+    var plegado = el('details', 'destacados__sin-foto');
+    var plegadoTitulo = el('summary', null, '');
+    plegado.appendChild(plegadoTitulo);
+    var plegadoLista = el('div', 'destacados destacados--sin-foto');
+    plegado.appendChild(plegadoLista);
     opciones.forEach(function (p) {
       var bloqueado = !!p.id && !C.fotoPrincipal(p) && p.id !== elegido;
-      var label = el('label', 'destacado' + (bloqueado ? ' destacado--sin-foto' : ''));
+      var label = el('label', p.id ? 'destacado' + (bloqueado ? ' destacado--sin-foto' : '') : 'opcion opcion--chip destacado-ninguno__opcion');
       var r = el('input');
       r.type = 'radio';
       r.name = 'destacado';
@@ -1859,6 +1939,13 @@
       r.checked = p.id === elegido;
       r.disabled = bloqueado;
       label.appendChild(r);
+      // «Ninguno»: un chip aparte, encima de la cuadrícula (que queda solo para productos)
+      if (!p.id) {
+        label.appendChild(el('span', null, 'Ninguno (solo la foto de la tienda)'));
+        cajaNinguno.appendChild(label);
+        if (conFoco === '') r.focus();
+        return;
+      }
       var cuerpo = el('span', 'destacado__caja');
       if (p.id) {
         var mini = el('span', 'destacado__foto');
@@ -1876,12 +1963,17 @@
       }
       var datos = el('span', 'destacado__datos');
       datos.appendChild(el('span', 'destacado__nombre', p.nombre));
-      if (p.id) datos.appendChild(el('span', 'destacado__precio', textoPrecio(p) + (p.estado === 'reservado' ? ' · Reservado' : '')));
+      if (p.id) datos.appendChild(el('span', 'destacado__precio', textoPrecio(p) + (p.estado === 'reservado' ? ' · Reservado' : '') + (bloqueado ? ' · Necesita foto' : '')));
       cuerpo.appendChild(datos);
       label.appendChild(cuerpo);
-      caja.appendChild(label);
+      (bloqueado ? plegadoLista : caja).appendChild(label);
       if (conFoco !== null && conFoco === p.id) r.focus();
     });
+    var nSin = plegadoLista.children.length;
+    if (nSin) {
+      plegadoTitulo.textContent = nSin === 1 ? '1 producto sin foto (no se puede destacar)' : nSin + ' productos sin foto (no se pueden destacar)';
+      caja.appendChild(plegado);
+    }
     $('tienda-foto-img').hidden = false;
     $('tienda-foto-img').src = srcFoto(contenido.portada.foto);
     window.Escaparate.pintarPortada(contenido, $('portada-previa'));
@@ -1913,8 +2005,10 @@
     });
   }
 
-  $('destacados').addEventListener('change', function (e) {
-    if (e.target.name === 'destacado') destacar(e.target.value);
+  [$('destacados'), $('destacado-ninguno')].forEach(function (caja) {
+    caja.addEventListener('change', function (e) {
+      if (e.target.name === 'destacado') destacar(e.target.value);
+    });
   });
 
   function alElegirFotoTienda(e) {
@@ -2016,11 +2110,10 @@
 
   function pintarRecuentoTemporada() {
     var n = contenido.productos.filter(function (p) { return p.enTemporada && p.estado !== 'vendido'; }).length;
-    var texto = n === 1 ? '1 producto en la temporada' : n + ' productos en la temporada';
     var t = contenido.temporada;
-    if (t.tipo !== 'ninguna' && !C.vigente(t.hasta)) texto += ' · Ya ha pasado la fecha: no sale en la web';
-    else if (!n && t.tipo !== 'ninguna') texto += ' · Márcalos en «Productos de la temporada», aquí abajo';
-    $('temporada-recuento').textContent = texto;
+    // Lo de cuántos hay ya lo dice «Productos de la temporada · N de M»; aquí solo el aviso de que la fecha ha pasado
+    $('temporada-recuento').textContent = t.tipo !== 'ninguna' && !C.vigente(t.hasta) ? '⚠ Ya ha pasado la fecha: no sale en la web' : '';
+    void n;
     pintarTemporadaProductos();
   }
 
@@ -2036,7 +2129,7 @@
     var t = leerTemporada();
     var caja = $('temporada-previa');
     caja.textContent = '';
-    $('temporada-texto').placeholder = t.tipo === 'ninguna' ? 'Elige antes una temporada' : C.TEMPORADAS[t.tipo].texto;
+    $('temporada-texto').placeholder = t.tipo === 'ninguna' ? 'Elige antes una temporada' : 'Por defecto: ' + C.TEMPORADAS[t.tipo].texto;
     contar($('temporada-texto'), $('temporada-cuenta'), C.LIMITES.temporada);
     if (t.tipo === 'ninguna') { caja.appendChild(el('p', 'bloque__ayuda', 'Sin temporada: no sale nada.')); return; }
     var banda = el('div', 'banda-temporada tema--' + t.tipo);
@@ -2127,7 +2220,11 @@
     var a = r.datos;
     $('anuncio-nota-sorteo').hidden = a.tipo !== 'sorteo';
     colocarCamposSorteo(a.tipo);
-    $('anuncio-nota-publicar').hidden = !$('anuncio-activo').checked;
+    var encendido = $('anuncio-activo').checked;
+    $('anuncio-nota-publicar').hidden = !encendido;
+    $('anuncio-apagado-nota').hidden = encendido;
+    $('anuncio-activo-estado').textContent = encendido ? '✓ Sí se ve' : 'No se ve';
+    $('anuncio-bloque').classList.toggle('bloque--apagado', !encendido);
     contar($('anuncio-titulo'), $('anuncio-titulo-cuenta'), C.LIMITES.anuncioTitulo);
     contar($('anuncio-texto'), $('anuncio-texto-cuenta'), C.LIMITES.anuncioTexto);
     var caja = $('anuncio-previa');
@@ -2260,6 +2357,7 @@
   }
   function validarWhatsapp() {
     var crudo = $('whatsapp').value;
+    if ($('whatsapp-mismo').checked && !C.normalizarWhatsapp(crudo)) { errorCampo('whatsapp', ''); return null; }
     var wa = C.normalizarWhatsapp(crudo);
     var error = '';
     if (!wa) {
@@ -2277,7 +2375,7 @@
   });
   var guardarWhatsapp = conRetraso(function () {
     var wa = validarWhatsapp();
-    if (wa === null) { avisarGuardado(false, 'Falta corregir el WhatsApp'); return; }
+    if (wa === null) { if (!$('whatsapp-mismo').checked) avisarGuardado(false, 'Falta corregir el WhatsApp'); return; }
     guardadoForm(guardarAjustes(function (c) { c.tienda.whatsapp = wa; }));
   });
   var guardarDireccion = conRetraso(function () {
@@ -2285,10 +2383,36 @@
       .filter(Boolean).slice(0, C.LIMITES.lineasDireccion).join('\n');
     guardadoForm(guardarAjustes(function (c) { c.tienda.direccion = direccion; }));
   });
-  $('telefono').addEventListener('input', guardarTelefono);
+  // «WhatsApp: usar el mismo número que el teléfono»: marcada, el WhatsApp sigue al teléfono (se guarda igual: 34XXXXXXXXX)
+  function copiarTelefonoAWhatsapp() {
+    var wa = C.normalizarWhatsapp($('telefono').value);
+    // Si el teléfono no es un móvil válido, el aviso lo da el teléfono; el WhatsApp no se toca
+    if (!wa) { errorCampo('whatsapp', ''); return; }
+    $('whatsapp').value = C.whatsappLegible(wa);
+    guardarWhatsapp();
+  }
+  function pintarWhatsappMismo(marcada) {
+    $('whatsapp-mismo').checked = marcada;
+    $('whatsapp').closest('.campo').hidden = marcada;
+    if (marcada) errorCampo('whatsapp', '');
+  }
+  $('whatsapp-mismo').addEventListener('change', function () {
+    pintarWhatsappMismo(this.checked);
+    if (this.checked) copiarTelefonoAWhatsapp(); else $('whatsapp').focus();
+  });
+  $('telefono').addEventListener('input', function () {
+    guardarTelefono();
+    if ($('whatsapp-mismo').checked) copiarTelefonoAWhatsapp();
+  });
   $('whatsapp').addEventListener('input', guardarWhatsapp);
+  // «Comprobar en Google Maps»: la búsqueda de la dirección escrita
+  function pintarEnlaceMapa() {
+    var d = $('direccion').value.replace(/\s+/g, ' ').trim();
+    $('direccion-mapa').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Siestta y Descanso ' + d);
+  }
   $('direccion').addEventListener('input', function () {
     limitarLineas($('direccion'), C.LIMITES.lineasDireccion, 'direccion');
+    pintarEnlaceMapa();
     guardarDireccion();
   });
   // Zona de entrega (opcional): vacía, la web dice «consulta zona»
@@ -2312,19 +2436,25 @@
   }
   function crearOpinion(o) {
     var li = el('li', 'opinion');
+    var lt = el('label', 'opinion__campo opinion__campo--texto');
+    lt.appendChild(el('span', 'opinion__etiqueta', 'Opinión'));
     var t = el('textarea', 'opinion__texto');
     t.rows = 2;
     t.maxLength = C.LIMITES.opinion;
     t.value = o.texto;
-    t.placeholder = 'Lo que dice';
-    li.appendChild(t);
+    t.placeholder = 'Ej.: Nos ayudaron mucho';
+    lt.appendChild(t);
+    li.appendChild(lt);
+    var la = el('label', 'opinion__campo opinion__campo--autor');
+    la.appendChild(el('span', 'opinion__etiqueta', 'Nombre del cliente'));
     var a = el('input', 'opinion__autor');
     a.type = 'text';
     a.maxLength = C.LIMITES.autor;
     a.autocomplete = 'off';
     a.value = o.autor;
-    a.placeholder = 'Nombre (Brian L.)';
-    li.appendChild(a);
+    a.placeholder = 'Ej.: María G.';
+    la.appendChild(a);
+    li.appendChild(la);
     var quitar = el('button', 'opinion__quitar');
     quitar.type = 'button';
     quitar.title = 'Quitar';
@@ -2372,9 +2502,69 @@
     }
     $('fin-activa').checked = contenido.financiacion.activa;
     poner('fin-texto', contenido.financiacion.texto);
+    pintarFinanciacion();
     pintarMarcasPanel();
     poner('desde', contenido.desde);
+    // El enlace de «Ver todas en Google»: si es el de por defecto, el campo queda vacío
+    poner('op-enlace', contenido.opiniones.enlace === C.ENLACE_GOOGLE ? '' : contenido.opiniones.enlace);
+    errorCampo('op-enlace', '');
+    pintarEnlaceOpiniones();
+    pintarPreviaOpiniones();
   }
+
+  // Financiación: el interruptor de la cabecera dice si se ve; las condiciones, solo con ella encendida
+  function pintarFinanciacion() {
+    var activa = $('fin-activa').checked;
+    $('fin-activa-estado').textContent = activa ? '✓ Sí se ve' : 'No se ve';
+    $('fin-texto-campo').hidden = !activa;
+    $('fin-apagada-nota').hidden = activa;
+    $('financiacion-bloque').classList.toggle('bloque--apagado', !activa);
+  }
+
+  // «Así se verá»: ★ nota · N en Google y la primera cita
+  function pintarPreviaOpiniones() {
+    var caja = $('op-previa');
+    caja.textContent = '';
+    var nota = C.numero($('op-nota').value.trim());
+    var total = $('op-total').value.trim();
+    var cab = el('p', 'op-previa__nota');
+    if (nota !== null && nota >= 1 && nota <= 5) {
+      cab.appendChild(el('strong', 'op-previa__cifra', '★ ' + textoNota(nota)));
+      if (/^\d+$/.test(total)) cab.appendChild(document.createTextNode(' · ' + total + ' en Google'));
+    } else {
+      cab.appendChild(document.createTextNode('Sin nota: no sale la cifra'));
+    }
+    caja.appendChild(cab);
+    var cita = leerOpiniones()[0];
+    if (cita) {
+      var q = el('blockquote', 'op-previa__cita', '«' + cita.texto + '»');
+      caja.appendChild(q);
+      if (cita.autor) caja.appendChild(el('p', 'op-previa__autor', cita.autor + ' · Opinión en Google'));
+    } else {
+      caja.appendChild(el('p', 'bloque__ayuda', 'Añade una opinión para verla aquí.'));
+    }
+  }
+
+  // Enlace a las opiniones de Google: se guarda si es de Google Maps (vacío = el de por defecto)
+  function pintarEnlaceOpiniones() {
+    var v = $('op-enlace').value.trim();
+    $('op-enlace-probar').href = v && C.enlaceOpiniones(v) ? v : C.ENLACE_GOOGLE;
+  }
+  var guardarEnlaceOpiniones = conRetraso(function () {
+    var v = $('op-enlace').value.trim();
+    var enlace = v ? C.enlaceOpiniones(v) : C.ENLACE_GOOGLE;
+    if (!enlace) {
+      errorCampo('op-enlace', 'Pega el enlace de la ficha de la tienda en Google Maps (empieza por https://maps.app.goo.gl/ o https://www.google.com/maps).');
+      avisarGuardado(false, 'Falta corregir el enlace de las opiniones');
+      return;
+    }
+    errorCampo('op-enlace', '');
+    guardadoForm(guardarAjustes(function (c) { c.opiniones.enlace = enlace; }));
+  });
+  $('op-enlace').addEventListener('input', function () { pintarEnlaceOpiniones(); guardarEnlaceOpiniones(); });
+  $('op-nota').addEventListener('input', pintarPreviaOpiniones);
+  $('op-total').addEventListener('input', pintarPreviaOpiniones);
+  $('op-lista').addEventListener('input', pintarPreviaOpiniones);
 
   var guardarNota = conRetraso(function () {
     var t = $('op-nota').value.trim();
@@ -2448,9 +2638,10 @@
 
   $('fin-activa').addEventListener('change', function () {
     var activa = $('fin-activa').checked;
+    pintarFinanciacion();
     guardarAjustes(function (c) { c.financiacion.activa = activa; }).then(function (r) {
       if (r.ok) avisar(activa ? 'Financiación: ahora sale en la web' : 'Financiación: ya no sale en la web');
-      else $('fin-activa').checked = contenido.financiacion.activa;
+      else { $('fin-activa').checked = contenido.financiacion.activa; pintarFinanciacion(); }
     });
   });
   var guardarFinTexto = conRetraso(function () {
@@ -2526,6 +2717,11 @@
     poner('zona-entrega', contenido.tienda.zonaEntrega);
     validarTelefono();
     validarWhatsapp();
+    if (!(respetarFoco && document.activeElement === $('whatsapp-mismo'))) {
+      var waTel = C.normalizarWhatsapp(contenido.tienda.telefono);
+      pintarWhatsappMismo(!!waTel && waTel === contenido.tienda.whatsapp);
+    }
+    pintarEnlaceMapa();
     pintarConfianza(respetarFoco);
     pintarTemporadaPanel(respetarFoco);
     pintarAnuncioPanel(respetarFoco);
@@ -2820,6 +3016,8 @@
       pintarSesion();
       pintarLista();
       pintarFormularios();
+      avisarGuardado(true, 'Todo al día');
+      $('guardado').dataset.estado = 'neutro';
     }, function (e) {
       cargandoPanel = false;
       estadoPanel('error', e.tipo === 'red' ? 'Sin conexión: no se han podido cargar los productos. Revisa internet.'
