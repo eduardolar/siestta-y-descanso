@@ -12,8 +12,10 @@ supabase/
   migraciones/006_opiniones_iniciales.sql  autores de las opiniones con la inicial del apellido
   migraciones/007_categorias_accesorios_otros.sql  categorías «Accesorios» (ACC-01…) y «Otros» (OTR-01…)
   migraciones/008_temporada.sql      temporada (banda y sección), anuncio (sorteos, eventos) y productos.en_temporada
+  migraciones/009_historial.sql      historial de cambios de productos y ajustes (90 días, solo lo leen los editores)
   deshacer/001_deshacer_esquema.sql  vuelta atrás de 001 (borra todo)
   deshacer/002_deshacer_datos_ejemplo.sql  vuelta atrás de 002 (solo antes de usar la web)
+  deshacer/009_deshacer_historial.sql      vuelta atrás de 009 (borra el historial)
 ```
 
 ## 1. Pasos en el panel de Supabase (una sola vez)
@@ -124,6 +126,31 @@ Si alguna vez se filtra la clave secreta: *API Keys* → rotarla/revocarla en el
 - **Portada sin producto fantasma**: si se vende o se borra el producto destacado en la portada, la
   portada se queda sin destacado automáticamente; y no se puede poner de destacado uno vendido o
   inexistente.
+- **`historial`** (desde la 009): una fila por cada alta, cambio o borrado de un producto o de los ajustes,
+  con cuándo, quién (`quien` = su UID, `correo` = el de su sesión, `origen` = `authenticated` si fue desde
+  el panel, `service_role` con la clave secreta o `postgres` desde el SQL Editor; en estos dos últimos
+  `quien` queda vacío), qué fila (`registro`: la ref o `ajustes`), `accion` (`crear`, `cambiar`, `borrar`),
+  un `resumen` corto y **solo lo que cambió** en `cambios`: `{"precio": {"antes": 699, "despues": 650}}`.
+  - Productos: por columna (no cuentan `creado_en` ni `actualizado_en`). Al crear salen todas con
+    `antes: null`; al borrar, todas con `despues: null` (sirve para rehacer un producto borrado por error).
+  - Ajustes: dentro de `datos`, por claves de primer y segundo nivel: `portada.titular`, `tienda.telefono`,
+    `marcas`, `opiniones.lista` (la lista entera, que es pequeña)… Un cambio más hondo se guarda en su clave
+    de segundo nivel (`tienda.aviso` con su `activo` y su `texto`). Nunca se copia `datos` entero al cambiar.
+  - Guardar sin cambiar nada (mismo contenido; `650` y `650.00` son lo mismo) **no** se anota.
+  - Lo escriben solo los disparadores. Lo **leen solo los editores**; el público no. Nadie puede añadir,
+    cambiar, borrar ni vaciar a mano: ni el panel, ni la clave secreta, ni el SQL Editor (este solo puede
+    borrar lo de más de 90 días; quitarlo entero, con `deshacer/009_deshacer_historial.sql`).
+  - Se guarda **90 días**: cada vez que se anota algo, la base de datos borra lo de más de 90 días (con el
+    índice por fecha cuesta una lectura; si otra sesión está limpiando en ese momento, lo salta y se borra
+    en la siguiente: nunca hace esperar a nadie). Si no hay cambios en meses, lo viejo sigue guardado hasta
+    el siguiente cambio, aunque **ya no se puede leer**: la regla de lectura solo deja ver los últimos 90 días.
+  - **Datos personales**: se guarda el **correo de quien edita** (90 días) y, en `cambios`, lo que se cambió,
+    que puede incluir nombres de terceros (autores de las opiniones). Para que lo viejo se borre puntualmente
+    aunque no haya cambios, se recomienda programar la limpieza diaria con `pg_cron` (sección 8). Para borrar
+    o anonimizar antes de tiempo (p. ej. si alguien lo pide), ver «Borrado de emergencia» en la sección 8.
+  - Tope de tamaño: si lo cambiado en una vez pasa de 8 KB, los campos de más de 2 KB se guardan solo con su
+    tamaño: `{"antes": {"omitido": 2300}, "despues": {"omitido": 2410}}`.
+  - Reordenar la lista anota una fila por cada producto que cambia de `orden`.
 
 ## 5. Para el desarrollo de la web (contrato con el frontend)
 
@@ -195,6 +222,24 @@ Altas: si dos dispositivos crean a la vez la misma `ref`, el segundo recibe el e
 | `42501` | Sin permiso: no ha entrado o no está en `editores`. |
 | respuesta `[]` en un update/delete condicional | Conflicto: otro dispositivo lo cambió antes. |
 
+### Historial (desde la 009)
+
+Solo para quien ha entrado y está en `editores` (otra cuenta recibe `[]`; sin entrar, error `42501`):
+
+```js
+// lo último primero (los últimos 90 días)
+const { data } = await sb.from('historial')
+  .select('cuando, correo, origen, tabla, registro, accion, resumen, cambios')
+  .gte('cuando', new Date(Date.now() - 90 * 864e5).toISOString())
+  .order('cuando', { ascending: false }).order('id', { ascending: false })
+  .limit(50);
+// lo de un producto: añadir .eq('tabla', 'productos').eq('registro', 'SOF-01')
+```
+
+**Pintarlo siempre como texto** (`textContent`, nunca `innerHTML` ni plantillas con HTML): `resumen` sale ya
+sin caracteres de control ni de dirección, pero `cambios` lleva tal cual lo que se escribió (nombres,
+descripciones, claves de los ajustes) y `correo` viene de la sesión.
+
 ## 6. Copias y avisos
 
 - **Copia de seguridad**: en el plan gratuito no hay copias que puedas restaurar tú. Lo mínimo:
@@ -212,5 +257,95 @@ Altas: si dos dispositivos crean a la vez la misma `ref`, el segundo recibe el e
 
 - `deshacer/002_deshacer_datos_ejemplo.sql`: quita los productos de ejemplo no tocados y la fila de
   ajustes. Solo tiene sentido **antes** de empezar a usar la web.
+- `deshacer/009_deshacer_historial.sql`: quita el historial (tabla, disparadores y funciones). Productos y
+  ajustes no se tocan. Lo guardado se pierde (exportarlo antes si se quiere).
 - `deshacer/001_deshacer_esquema.sql`: **borra todo** (productos, ajustes, editores, reglas). Antes,
   exporta los datos. El bucket se vacía en *Storage* y luego se borra (por SQL no se puede vaciar).
+
+## 8. Migración 009: historial de cambios
+
+**Cómo ejecutarla.** *SQL Editor* → *New query* → pega **todo** `migraciones/009_historial.sql` → *Run*.
+Termina con una fila de comprobación: `rls_historial = true`, los cuatro disparadores
+(`historial_ajustes en ajustes, historial_intocable en historial, historial_productos en productos,
+historial_sin_vaciar en historial`) y
+`politicas = 1`. Si el editor avisa de operaciones «destructivas», confirma: son los `revoke` y el
+`drop policy if exists` del script. Se puede volver a ejecutar (no borra el historial guardado). No cambia
+productos ni ajustes; desde ese momento se anota cada cambio (lo anterior no quedó registrado).
+
+**Prueba a mano** (SQL Editor, después de ejecutarla; cada bloque en una consulta nueva). Desde el SQL Editor
+las filas salen con `origen = postgres` y `quien`/`correo` vacíos: es lo esperado.
+
+```sql
+-- 1) Un cambio real y otro sin diferencias: solo sale UNA fila nueva, con solo «orden».
+update public.productos set orden = orden + 1 where ref = (select min(ref) from public.productos);
+update public.productos set orden = orden     where ref = (select min(ref) from public.productos);  -- no anota
+select id, cuando, origen, accion, registro, resumen, cambios from public.historial order by id desc limit 3;
+
+-- 2) Volver a dejarlo como estaba (anota otra fila, con antes/despues al revés).
+update public.productos set orden = orden - 1 where ref = (select min(ref) from public.productos);
+
+-- 3) Un ajuste de segundo nivel: sale «tienda.zonaEntrega», no «datos» entero.
+update public.ajustes set datos = jsonb_set(datos, '{tienda,zonaEntrega}', '"Prueba del historial"') where id = 1;
+select registro, resumen, cambios from public.historial order by id desc limit 1;
+
+-- 4) Y se deshace con el «antes» guardado en el propio historial:
+update public.ajustes
+   set datos = jsonb_set(datos, '{tienda,zonaEntrega}',
+                 (select h.cambios #> '{tienda.zonaEntrega,antes}' from public.historial h
+                   where h.registro = 'ajustes' and h.cambios ? 'tienda.zonaEntrega' order by h.id desc limit 1))
+ where id = 1;
+select datos #>> '{tienda,zonaEntrega}' as zona_entrega from public.ajustes;   -- la de antes
+
+-- 5) Nadie lo cambia a mano (cada línea, sola, debe dar error):
+update public.historial set resumen = 'x';    -- «El historial no se puede cambiar»
+delete from public.historial;                 -- «El historial de los últimos 90 días no se puede borrar»
+truncate public.historial;                    -- «El historial no se puede vaciar»
+
+-- 6) Permisos: solo SELECT para authenticated y service_role; nada para anon (postgres, el dueño, sale con todo).
+select grantee, privilege_type from information_schema.role_table_grants
+ where table_schema = 'public' and table_name = 'historial' order by grantee;
+
+-- 7) El historial no se emite por Realtime: tiene que salir VACÍO.
+select * from pg_publication_tables where tablename = 'historial';
+```
+
+Después, en el panel con la cuenta de la editora, cambia algo y mira en *Table Editor* → `historial` que la
+fila nueva lleva `origen = authenticated` y su correo. Que el público **no** lo lee (cambia `URL_PROYECTO`
+y `CLAVE_PUBLICA`; debe responder un error de permiso `42501`, no una lista):
+
+```sh
+curl "URL_PROYECTO/rest/v1/historial?select=id&limit=1" -H "apikey: CLAVE_PUBLICA"
+```
+
+**Limpieza diaria (recomendada).** El disparador ya borra lo viejo en cada cambio, pero si pasan semanas sin
+cambios el correo de la editora seguiría guardado más de 90 días (aunque nadie pueda leerlo). Para que se
+borre a diario: *Database* → *Extensions* → activar `pg_cron`, y en el SQL Editor:
+
+```sql
+select cron.schedule('historial-90-dias', '17 4 * * *', 'select privado.historial_limpiar()');
+select jobid, jobname, schedule, command from cron.job where jobname = 'historial-90-dias';  -- comprobar
+```
+
+(Hora del servidor, UTC: las 4:17 son las 5:17 o 6:17 en Madrid. `deshacer/009_deshacer_historial.sql` quita
+la tarea si existe.)
+
+**Borrado de emergencia** (p. ej. alguien pide que se borren sus datos, o se guardó algo que no debía).
+Desactiva la protección **solo dentro de la transacción**: si algo falla, no queda desactivada. Cambia el
+correo o el filtro y ejecuta el bloque entero:
+
+```sql
+begin;
+alter table public.historial disable trigger historial_intocable;
+-- Borrar lo de una persona…
+delete from public.historial where correo = 'correo@ejemplo.com';
+-- …o, en su lugar, anonimizar (se conserva qué se cambió, sin quién):
+-- update public.historial set correo = null, quien = null where correo = 'correo@ejemplo.com';
+-- …o quitar una fila concreta: delete from public.historial where id = 123;
+alter table public.historial enable trigger historial_intocable;
+commit;
+-- Comprobación: tiene que salir «O» (activado).
+select tgenabled from pg_trigger where tgname = 'historial_intocable';
+```
+
+Los textos de terceros dentro de `cambios` (p. ej. el autor de una opinión) se buscan con
+`where cambios::text ilike '%Nombre%'` en el mismo bloque.

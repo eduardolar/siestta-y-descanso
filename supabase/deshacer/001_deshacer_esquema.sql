@@ -10,6 +10,7 @@ drop policy if exists "fotos: los editores suben"      on storage.objects;
 drop policy if exists "fotos: los editores reemplazan" on storage.objects;
 drop policy if exists "fotos: los editores borran"     on storage.objects;
 
+drop table if exists public.historial;  -- de la 009, si se ejecutó
 drop table if exists public.productos;
 drop table if exists public.ajustes;
 drop table if exists public.editores;
