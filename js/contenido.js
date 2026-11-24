@@ -252,6 +252,11 @@
     return re.test(t) ? t : '';
   }
   function enlaceAnuncio(valor) { return enlaceSeguro(valor, RE_ENLACE_ANUNCIO); }
+  // Enlace a la ficha de la tienda en Google (para «Ver todas en Google»), con la misma regla que normalizar(); si no vale, ''
+  function enlaceOpiniones(valor) {
+    var v = String(valor || '').trim();
+    return RE_ENLACE_OPINIONES.test(v) && v.length <= 500 && !/[\s<>"']/.test(v) ? v : '';
+  }
   function enlaceBases(valor) { return enlaceAnuncio(valor) || enlaceSeguro(valor, RE_ENLACE_BASES); }
 
   // «2026-12-24» que exista de verdad (no «2026-02-30»); si no, ''
@@ -695,6 +700,7 @@
     TIPOS_ANUNCIO: TIPOS_ANUNCIO,
     enlaceAnuncio: enlaceAnuncio,
     enlaceBases: enlaceBases,
+    enlaceOpiniones: enlaceOpiniones,
     fecha: fecha,
     fechaLegible: fechaLegible,
     hoyMadrid: hoyMadrid,

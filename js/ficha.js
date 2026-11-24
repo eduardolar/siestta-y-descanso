@@ -172,7 +172,8 @@
     var filas = [];
     if (p.medidas) filas.push(['Medidas', p.medidas]);
     if (p.colores) filas.push(['Telas', p.colores]);
-    if (p.categoria === 'colchones' && p.firmeza) filas.push(['Firmeza', C.FIRMEZAS[p.firmeza]]);
+    // La firmeza solo tiene sentido en colchones y camas (si quedó puesta en otra categoría, no sale)
+    if ((p.categoria === 'colchones' || p.categoria === 'camas') && p.firmeza) filas.push(['Firmeza', C.FIRMEZAS[p.firmeza]]);
     if (p.aMedida) filas.push(['A medida', 'Sí']);
     if (p.plazo) filas.push(['Plazo', p.plazo]);
     if (!filas.length) return null;
